@@ -1,206 +1,222 @@
-/**  
-* Copyright (c) 2025 Comunidad de Madrid & Alastria  
-*  
-* Licensed under the Apache License, Version 2.0 (the "License");  
-* you may not use this file except in compliance with the License.  
-*  
-* You may obtain a copy of the License at  
-* [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0 "http://www.apache.org/licenses/license-2.0")  
-*  
-* Unless required by applicable law or agreed to in writing, software  
-* distributed under the License is distributed on an "AS IS" BASIS,  
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  
-* See the License for the specific language governing permissions and  
-* limitations under the License.  
-*/
 
-import { JsonRpcProvider, Wallet } from "ethers";
 import chalk from "chalk";
-import { randomBytes } from "crypto";
+import { JsonRpcProvider, Wallet, TransactionReceipt, ethers } from "ethers";
+import { IDidDocumentDetailed } from "did-isbe-registry";
 import elliptic from "elliptic";
 import { keccak_256 } from "@noble/hashes/sha3";
-import IDidDocumentDetailed from "../../../../libs/did-isbe-lib/identity/didregistry/IDidDocumentDetailed";
+import { Buffer } from "node:buffer";
+import bs58 from "bs58";
+import { saveDID } from "../utils/localStorage";
+
  
-const ec = new elliptic.ec("secp256k1");
- 
-function hexToJwk(hexKey: string) {
-  if (hexKey.startsWith("0x")) hexKey = hexKey.slice(2);
-  const buf = Buffer.from(hexKey, "hex");
-  if (buf[0] !== 0x04) throw new Error("Public key no está en formato uncompressed (0x04...)");
-
-  const x = buf.slice(1, 33);
-  const y = buf.slice(33, 65);
-
-  const toBase64Url = (b: Buffer) =>
-    b
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-
-  return {
-    kty: "EC",
-    crv: "secp256k1",
-    x: toBase64Url(x),
-    y: toBase64Url(y),
-  };
-}
-
-export default class DidDocument {
+export default class DidCommands {
   private provider: JsonRpcProvider;
   private wallet: Wallet;
-  private didDoc: IDidDocumentDetailed;
-  
-  constructor(provider: JsonRpcProvider, wallet: Wallet) {
+  private didLib: IDidDocumentDetailed;
+  private ec = new elliptic.ec("secp256k1");
+  private readonly NAMESPACE_ROOT = "root";
+  private readonly NAMESPACE_CHILD = "usecase-demo-01";
+ 
+  constructor(provider: JsonRpcProvider, wallet: Wallet, rpcUrl: string) {
     this.provider = provider;
     this.wallet = wallet;
-    this.didDoc = new IDidDocumentDetailed(provider, wallet);
+    this.didLib = new IDidDocumentDetailed(rpcUrl);
+    this.didLib.configManager.updateConfig({
+      didRegistryAddress: process.env.DID_REGISTRY_ADDRESS
+    });
+    this.didLib.contract = this.didLib.configManager.getContract(); 
+    console.log("DID Registry final en didLib.contract:", this.didLib.contract.target);
   }
  
-  async init() {
+  private async sendTransaction(tx: any): Promise<TransactionReceipt> {
+    console.log(chalk.cyan("Preparando envío de transacción..."));
     try {
-      const receipt = await this.didDoc.initializeDiDRegistry(1);
-      console.log(chalk.green("initializeDiDRegistry tx:"), receipt.hash);
-    } catch {
-      console.log(chalk.yellow("initializeDiDRegistry ya fue llamado anteriormente"));
+      const txResp = await this.wallet.sendTransaction(tx);
+      console.log(chalk.gray(`Tx hash: ${txResp.hash}`));
+      const receipt = await txResp.wait();
+      console.log(chalk.green(`Confirmada en bloque ${receipt.blockNumber}`));
+      return receipt;
+    } catch (err: any) {
+      console.error(chalk.red("Error al enviar transacción:"), err.message || err);
+      throw err;
     }
   }
+ 
+  private normalizeTime(timestamp?: number) {
+    return timestamp ?? Math.floor(Date.now() / 1000);
+  }
+ 
   private selfSign(privHex: string) {
-    const key = ec.keyFromPrivate(privHex);
-    const pubPoint = key.getPublic();
-    const pubUncompressed = Buffer.from(pubPoint.encode("hex", false), "hex");
-    const msg = keccak_256(pubUncompressed);
+    const key = this.ec.keyFromPrivate(privHex.replace(/^0x/, ""), "hex");
+    const pubUncompressed = Buffer.from(key.getPublic().encode("hex", false), "hex");
+    const pubXY = pubUncompressed.slice(1);
+    const msg = keccak_256(pubXY);
     const sig = key.sign(msg, { canonical: true });
-    const signatureDER = Buffer.from(sig.toDER());
- 
-    return {
-      signatureDER,
-      pubUncompressedHex: pubPoint.encode("hex", false),
-    };
+    const r = sig.r.toArrayLike(Buffer, "be", 32);
+    const s = sig.s.toArrayLike(Buffer, "be", 32);
+    const v = (sig.recoveryParam ?? 0) + 27;
+    const proof = Buffer.concat([r, s, Buffer.from([v])]);
+    return { proof, key, signatureDER: Buffer.from(sig.toDER()) };
   }
  
-  private buildDID(signatureDER: Buffer, modelDeployId: string) {
-    const last32 = signatureDER.subarray(signatureDER.length - 32);
-    const methodSpecificId = last32.toString("hex");
-    return `did:isbe:${modelDeployId}:${methodSpecificId}`;
+  private buildDID(signatureDER: Buffer, modelId: string) {
+    const last19 = signatureDER.slice(-19);
+    const versionByte = Buffer.from([0x00]);
+    const methodBytes = Buffer.concat([versionByte, last19]);
+    return `did:isbe:${modelId}:${methodBytes.toString("hex")}`;
   }
  
-  async createFromWallet(
-    modelDeployId: string,
-    vMethodId: string,
-    ellipticType: number,
-    validityDays: number
-  ) {
-    const priv = randomBytes(32).toString("hex");
-    console.log(chalk.yellow(" Private key generada (hex):"), priv);
-    const walletFromPriv = new Wallet("0x" + priv);
-    const address = walletFromPriv.address.toLowerCase(); 
-    console.log(chalk.magenta("Address derivada:"), address);
-    
-    const pubKeySignature = this.selfSign(priv);
-    const did = this.buildDID(pubKeySignature.signatureDER, modelDeployId);
-    const publicKeyHex = "0x" + pubKeySignature.pubUncompressedHex;
- 
-    const now = Math.floor(Date.now() / 1000);
-    const notBefore = now;
-    const notAfter = now + validityDays * 24 * 60 * 60;
-    const baseDocument = JSON.stringify({ "@context": "https://www.w3.org/ns/did/v1" });
- 
-    console.log(chalk.blue("DID generado:"), did);
-    console.log(chalk.cyan("PublicKeyHex (uncompressed):"), publicKeyHex);
-
+  async init(ellipticType: number) {
+    console.log(chalk.cyan("Inicializando DID Registry..."));
     try {
-      const receipt = await this.didDoc.insertDidDocument(
-        did,
-        baseDocument,
-        vMethodId,
-        publicKeyHex,
-        ellipticType,
-        notBefore,
-        notAfter
-      );
- 
-      console.log(chalk.green("insertDidDocument tx:"), receipt.hash);
-      return { did, publicKeyHex };
-    } catch (err) {
-      console.error(chalk.red("Error en insertDidDocument:"), err);
-    }
-  }
- 
-  async get(
-    did: string,
-    format: "hex" | "jwk" = "hex",
-    includeContext = true
-  ) {
-    const doc = await this.didDoc.getDidDocument(did);
+      const rawTx = await this.didLib.buildInitializeDiDRegistryTx(ellipticType);
+      const parsed = ethers.Transaction.from(rawTx);
 
-    if (!includeContext && doc?.baseDocument) {
-      try {
-        const parsed = JSON.parse(doc.baseDocument);
-        delete parsed["@context"];
-        doc.baseDocument = JSON.stringify(parsed);
-      } catch {
-        console.warn("No se pudo procesar baseDocument para eliminar @context");
+      const txRequest = {
+        to: parsed.to,
+        data: parsed.data,
+        gasLimit: parsed.gasLimit ?? 1500000n,
+        value: parsed.value ?? 0n,
+        gasPrice: parsed.gasPrice ?? (await this.provider.getFeeData()).gasPrice,
+        nonce: await this.wallet.getNonce(),
+        chainId: (await this.provider.getNetwork()).chainId,
+      };
+      await this.sendTransaction(txRequest);
+      console.log(chalk.green("Registro DID inicializado correctamente."));
+    } catch (err: any) {
+      if (err.message?.includes("Already initialized")) {
+        console.log(chalk.yellow("El contrato ya estaba inicializado."));
+      } else {
+        console.error(chalk.red("Error al inicializar el registro:"), err);
       }
     }
+  }
 
-    if (format === "jwk" && doc?.publicKeyHex) {
-      try {
-        const jwk = hexToJwk(doc.publicKeyHex);
-        doc.publicKeyJwk = jwk;
-      } catch (err) {
-        console.error(chalk.red("Error convirtiendo hex → JWK:"), err);
-      }
-    }
-
-    console.log(chalk.cyan("\ngetDidDocument →"));
-    console.dir(doc, { depth: null, colors: true });
-    return doc;
+  async createRoot(privKey: string, baseDocument: string, alsoKnownAs?: string): Promise<string> {
+    const key = this.ec.keyFromPrivate(privKey.replace(/^0x/, ""), "hex");
+    const pubUncompressed = Buffer.from(key.getPublic().encode("hex", false), "hex");
+    const pubXY = pubUncompressed.slice(1);
+    const sig = key.sign(keccak_256(pubXY), { canonical: true });
+    const r = sig.r.toArrayLike(Buffer, "be", 32);
+    const s = sig.s.toArrayLike(Buffer, "be", 32);
+    const v = (sig.recoveryParam ?? 0) + 27;
+    const proof = Buffer.concat([r, s, Buffer.from([v])]);
+ 
+    const didBytes = Buffer.concat([Buffer.from([0x00]), proof.slice(-19)]);
+    const did = `did:isbe:${this.NAMESPACE_ROOT}:${didBytes.toString("hex")}`;
+    const fragment = bs58.encode(Buffer.from(keccak_256(Buffer.from(did)).slice(0, 8)));
+    const publicKeyHex = "0x" + key.getPublic().encode("hex", false);
+ 
+    saveDID({
+      did,
+      baseDocument,
+      fragment,
+      publicKeyHex,
+      version: 1,
+      createdAt: Date.now(),
+      alsoKnownAs: alsoKnownAs ?? "",
+      type: "root"
+    });
+ 
+    console.log(chalk.green(`Root DID creado: ${did}`));
+    return did;
   }
  
-  async getByTimestamp(did: string, timestamp: number, format: "hex" | "jwk" = "hex") {
-    const docTs = await this.didDoc.getDidDocumentByTimestamp(did, timestamp);
 
-    if (format === "jwk" && Array.isArray(docTs?.vMethods)) {
-      for (const v of docTs.vMethods) {
-        if (v.publicKey) {
-          try {
-            const jwk = hexToJwk(v.publicKey);
-            v.publicKeyJwk = jwk;
-          } catch (err) {
-            console.error(chalk.red("Error convirtiendo hex → JWK:"), err);
-          }
-        }
-      }
-    }
-
-    console.log(chalk.cyan("\ngetDidDocumentByTimestamp →"));
-    console.dir(docTs, { depth: null, colors: true });
-    return docTs;
+  async createChild(privKey: string, baseDocument: string, alsoKnownAs?: string): Promise<string> {
+    const key = this.ec.keyFromPrivate(privKey.replace(/^0x/, ""), "hex");
+    const pubUncompressed = Buffer.from(key.getPublic().encode("hex", false), "hex");    const pubXY = pubUncompressed.slice(1);
+    const sig = key.sign(keccak_256(pubXY), { canonical: true });
+    const r = sig.r.toArrayLike(Buffer, "be", 32);
+    const s = sig.s.toArrayLike(Buffer, "be", 32);
+    const v = (sig.recoveryParam ?? 0) + 27;
+    const proof = Buffer.concat([r, s, Buffer.from([v])]);
+  
+    const didBytes = Buffer.concat([Buffer.from([0x00]), proof.slice(-19)]);
+    const did = `did:isbe:${this.NAMESPACE_CHILD}:${didBytes.toString("hex")}`;
+    const fragment = bs58.encode(Buffer.from(keccak_256(Buffer.from(did)).slice(0, 8)));
+    const publicKeyHex = "0x" + key.getPublic().encode("hex", false);
+  
+    saveDID({
+      did,
+      baseDocument,
+      fragment,
+      publicKeyHex,
+      version: 1,
+      createdAt: Date.now(),
+      alsoKnownAs: alsoKnownAs ?? "",
+      type: "child"
+    });
+  
+    console.log(chalk.green(`Child DID creado: ${did}`));
+    return did;
   }
- 
-  async list(page: number, pageSize: number) {
-    const res = await this.didDoc.getDids(page,pageSize);
-    const allDids = await this.didDoc.getDids(page, pageSize);
-    console.log(chalk.cyan("\ngetDids →"));
-    for (const [i, d] of allDids.items.entries()) {
-      console.log(`  ${i + 1}. ${d}`);
-    }
-    console.log(`  total: ${allDids.total}`);
-    console.log(`  howMany: ${allDids.howMany}`);
-    console.log(`  prev: ${allDids.prev}`);
-    console.log(`  next: ${allDids.next}`);
-    return res;
-  }
- 
-  async update(did: string, newDoc: string) {
 
+  async updateBaseDocument(did: string, baseDocument: any) {
     try {
-      const receipt = await this.didDoc.updateBaseDocument(did, newDoc);
-      console.log(chalk.green("updateBaseDocument tx:"), receipt.hash);
+      console.log(chalk.yellow(`\n Actualizando base document de ${did}...`));
+      const rawSignedTx = await this.didLib.buildUpdateBaseDocumentTx(did, baseDocument);
+      console.log("Raw TX construida (firmada). Enviando...");
+      const txResponse = await this.provider.broadcastTransaction(rawSignedTx);
+      console.log("TX enviada:", txResponse.hash);
+      const receipt = await txResponse.wait();
+  
+      console.log("Receipt:", receipt);
+      console.log(chalk.green("Base document actualizado correctamente."));
     } catch (err) {
-      console.error(chalk.red("Error en updateBaseDocument:"), err);
+      console.error("Error en updateBaseDocument");
+      console.error(err);
+      throw err;
     }
+  }
+
+ 
+ 
+  async updateAlsoKnownAs(did: string, aka: string) {
+    console.log(chalk.blueBright(`Actualizando alsoKnownAs de ${did} (on-chain)`));
+    try {
+      const tx = await this.didLib.buildUpdateAlsoKnownAsTx(did, aka);
+      await this.sendTransaction(tx);
+      console.log(chalk.green("alsoKnownAs actualizado on-chain."));
+  
+      // actualizar local
+      try {
+        updateDID(did, { aka });
+        console.log(chalk.green("Store local actualizado."));
+      } catch (e: any) {
+        console.log(chalk.yellow("No se pudo actualizar store local:"), e.message);
+      }
+    } catch (e: any) {
+      console.error(chalk.red("Error al actualizar alias:"), e.message || e);
+      throw e;
+    }
+  }
+ 
+  async listAll(): Promise<DIDRecord[]> {
+      const all = loadDIDs();
+      console.log(chalk.blueBright("DIDs encontrados:"));
+      console.log(JSON.stringify(all, null, 2));
+      return all;
+  }
+
+ 
+  async getDid(did: string): Promise<DIDRecord | null> {
+      const all = loadDIDs();
+      const found = all.find(d => d.did === did);
+      if (!found) {
+        console.log(chalk.yellow(`DID ${did} no encontrado.`));
+        return null;
+      }
+      console.log(chalk.blueBright(" DID encontrado:"));
+      console.log(JSON.stringify(found, null, 2));
+      return found;
+  }
+ 
+ 
+  async getDidByTimestamp(did: string, timestamp: number, format: "hex" | "jwk" = "hex") {
+    console.log(chalk.blueBright(`Obteniendo DID histórico: ${did} @ ${timestamp}`));
+    console.log(chalk.green(await this.didLib.getDidDocumentByTimestamp(did, timestamp, format)));
   }
 }
+
  

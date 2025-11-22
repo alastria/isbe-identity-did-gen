@@ -35,7 +35,7 @@ Este proyecto utiliza archivos `.env` para la configuración:
 Ejemplo `.env`:
     ACCOUNT_ADDRESS=<dirección de env>
     ACCOUNT_PRIVATE_KEY=<llave privada env>
-    RPC_URL=http://34.175.89.69:8545
+    RPC_URL=ulr
 Ejemplo `.env.controller`:
     ACCOUNT_ADDRESS="<dirección controller generado>"
     ACCOUNT_PRIVATE_KEY="<llave del controler generado>"
