@@ -8,11 +8,8 @@ import DidRelationship from "./commands/relationship"
 import { isRegistryInitialized } from "./utils/isRegistryInitialized";
 import { loadRootWallet } from "./utils/loadRootWallet";
 import { readDIDs, findDID } from "./utils/localStorage";
-
-
 import fs from "fs";
 
-import { selfSign, buildDID, fragmentFromDid, pubkeyToJWK } from "./utils/didUtils";
  
 const RPC_URL = process.env.RPC_URL!;
 const PRIVATE_KEY = process.env.ACCOUNT_PRIVATE_KEY!;
@@ -149,16 +146,16 @@ program
   .requiredOption("--did <did>", "DID a consultar")
   .action(async (opts) => {
     try {
-      const did = opts.did;
-      const entry = findDID(did);
-      if (!entry) {
-        console.log(chalk.yellow(`DID ${did} no encontrado en storage local (.dids.json)`));
-        return;
-      }
-      console.log(chalk.blueBright(" DID (off-chain):"));
-      console.log(JSON.stringify(entry, null, 2));
+      const onchain = await didCLI.getDidOnChain(opts.did);
+      if (!onchain) return;
+      const local = findDID(opts.did);
+      console.log(chalk.blueBright("\nInformación combinada (on-chain + off-chain):\n"));
+       console.log(JSON.stringify({
+        onchain,
+        local
+      }, null, 2));
     } catch (e: any) {
-      console.error(chalk.red("Error consultando DID:"), e.message || e);
+      console.error(chalk.red("Error en get-did:"), e.message || e);
     }
   });
  
@@ -171,36 +168,79 @@ program
     await didCLI.getDidByTimestamp(opts.did, Number(opts.timestamp), opts.format);
   });
  
+function initEnvironment() {
+  const relationship = new DidRelationship(provider, signerToUse, RPC_URL);
+  return { relationship };
+}
 
 program
-  .command("add-vmethod")
-  .requiredOption("--did <did>", "DID al que añadir vMethod")
-  .requiredOption("--pub <pubHex>", "Public key hex (0x04||X||Y) o JWK JSON string")
-  .option("--name <name>", "Nombre del vMethod")
-  .option("--notBefore <ts>", "notBefore (unix seconds)")
-  .option("--notAfter <ts>", "notAfter (unix seconds)")
-  .action(async (opts) => {
-    try {
-      const nb = opts.notBefore ? Number(opts.notBefore) : undefined;
-      const na = opts.notAfter ? Number(opts.notAfter) : undefined;
-      await didCLI.addVerificationMethod(opts.did, opts.pub, opts.name, nb, na);
-      console.log(chalk.green("add-vmethod finalizado."));
-    } catch (e: any) {
-      console.error(chalk.red("Error en add-vmethod:"), e.message || e);
-    }
-  });
- 
-program
-  .command("revoke-vmethod")
+  .command("add-vm")
   .requiredOption("--did <did>", "DID")
-  .requiredOption("--fragment <frag>", "fragment (base58) del vMethod")
+  .requiredOption("--pub <key>", "Public key hex")
+  .option("--curve <num>", "EllipticType", "1")
+  .description("Añade un verificationMethod")
   .action(async (opts) => {
-    try {
-      await didCLI.revokeVerificationMethod(opts.did, opts.fragment);
-      console.log(chalk.green("revoke-vmethod finalizado."));
-    } catch (e: any) {
-      console.error(chalk.red("Error en revoke-vmethod:"), e.message || e);
-    }
+    const { relationship } = initEnvironment();
+    await relationship.addVerificationMethod(
+      opts.did,
+      opts.pub,
+      Number(opts.curve)
+    );
+  });
+
+ 
+
+program
+  .command("revoke-vm")
+  .requiredOption("--did <did>", "DID")
+  .requiredOption("--fragment <frag>", "Fragment del VM")
+  .option("--notAfter <num>", "Timestamp de revocación")
+  .description("Revoca un verificationMethod")
+  .action(async (opts) => {
+    const { relationship } = initEnvironment();
+    await relationship.revokeVerificationMethod(
+      opts.did,
+      opts.fragment,
+      opts.notAfter ? Number(opts.notAfter) : undefined
+    );
+  });
+
+ 
+
+program
+  .command("expire-vm")
+  .requiredOption("--did <did>", "DID")
+  .requiredOption("--fragment <frag>", "Fragment del VM")
+  .requiredOption("--notAfter <num>", "Nuevo timestamp notAfter")
+  .description("Expira un verificationMethod")
+  .action(async (opts) => {
+    const { relationship } = initEnvironment();
+    await relationship.expireVerificationMethod(
+      opts.did,
+      opts.fragment,
+      Number(opts.notAfter)
+    );
+  });
+
+ 
+
+program
+  .command("roll-vm")
+  .requiredOption("--did <did>", "DID")
+  .requiredOption("--old <frag>", "Fragment viejo")
+  .requiredOption("--pub <key>", "Nueva public key")
+  .option("--curve <num>", "EllipticType", "1")
+  .option("--duration <num>", "Duración de validez (segundos)", "31536000")
+  .description("Rota (roll) un verificationMethod")
+  .action(async (opts) => {
+    const { relationship } = initEnvironment();
+    await relationship.rollVerificationMethod(
+      opts.did,
+      opts.old,
+      opts.pub,
+      Number(opts.curve),
+      Number(opts.duration)
+    );
   });
 program.parse();
 

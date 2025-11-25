@@ -17,7 +17,41 @@ export default class DidCommands {
   private ec = new elliptic.ec("secp256k1");
   private readonly NAMESPACE_ROOT = "root";
   private readonly NAMESPACE_CHILD = "usecase-demo-01";
+  private readonly ellipticType = 1;
+
+  private selfSignForChild(key: elliptic.ec.KeyPair) {
+  const pubUncompressed = Buffer.from(key.getPublic().encode("hex", false), "hex");
+  const pubXY = pubUncompressed.slice(1); // quitar 0x04
  
+  const msg = keccak_256(pubXY);
+  const sig = key.sign(msg, { canonical: true });
+ 
+  const r = sig.r.toArrayLike(Buffer, "be", 32);
+  const s = sig.s.toArrayLike(Buffer, "be", 32);
+  const v = (sig.recoveryParam ?? 0) + 27;
+ 
+  const proof = ethers.concat([r, s, Uint8Array.from([v])]);
+  const signatureDER = Buffer.from(sig.toDER());
+ 
+  return { proof, signatureDER };
+}
+
+ 
+private buildDIDFromSignature(signatureDER: Buffer) {
+  const last19 = signatureDER.slice(-19);
+  const versionByte = Buffer.from([0x00]);
+ 
+  const methodBytes = Buffer.concat([versionByte, last19]);
+  const methodSpecificId = methodBytes.toString("hex");
+ 
+  return `did:isbe:${this.NAMESPACE_CHILD}:${methodSpecificId}`;
+}
+
+ 
+private fragmentFromDid(did: string) {
+  return bs58.encode(Buffer.from(keccak_256(Buffer.from(did)).slice(0, 8)));
+}
+
   constructor(provider: JsonRpcProvider, wallet: Wallet, rpcUrl: string) {
     this.provider = provider;
     this.wallet = wallet;
@@ -70,100 +104,209 @@ export default class DidCommands {
   }
 
   async createRoot(privKey: string, baseDocument: string, alsoKnownAs?: string): Promise<string> {
-    console.log(chalk.cyan("\nCreando Root DID..."));
-    const key = this.ec.keyFromPrivate(privKey.replace(/^0x/, ""), "hex");
-    const pubUncompressed = Buffer.from(key.getPublic().encode("hex", false), "hex");
-    const pubXY = pubUncompressed.slice(1);
-    const sig = key.sign(keccak_256(pubXY), { canonical: true });
-    const r = sig.r.toArrayLike(Buffer, "be", 32);
-    const s = sig.s.toArrayLike(Buffer, "be", 32);
-    const v = (sig.recoveryParam ?? 0) + 27;
-    const proof = Buffer.concat([r, s, Buffer.from([v])]);
-    const didBytes = Buffer.concat([Buffer.from([0x00]), proof.slice(-19)]);
-    const did = `did:isbe:${this.NAMESPACE_ROOT}:${didBytes.toString("hex")}`;
-    const fragment = bs58.encode(Buffer.from(keccak_256(Buffer.from(did)).slice(0, 8)));
-    const publicKeyHex = "0x" + key.getPublic().encode("hex", false);
+ 
+  console.log(chalk.cyan("\nCreando Root DID (on-chain)…"));
+ 
+  // 1) Key y pública XY
+
+  const key = this.ec.keyFromPrivate(privKey.replace(/^0x/, ""), "hex");
+
+  const pub = key.getPublic();
+
+  const pubXY = Buffer.from(pub.encode("hex", false), "hex").slice(1);
+ 
+  // 2) Self-sign
+
+  const msg = keccak_256(pubXY);
+
+  const sig = key.sign(msg, { canonical: true });
+ 
+  const r = sig.r.toArrayLike(Buffer, "be", 32);
+
+  const s = sig.s.toArrayLike(Buffer, "be", 32);
+
+  const v = (sig.recoveryParam ?? 0) + 27;
+
+  const proof = ethers.concat([r, s, Uint8Array.from([v])]);
+ 
+  // 3) DID desde Signature DER
+
+  const signatureDER = Buffer.from(sig.toDER());
+
+  const last19 = signatureDER.slice(-19);
+
+  const did = `did:isbe:${this.NAMESPACE_ROOT}:00${last19.toString("hex")}`;
+ 
+  // 4) Fragment
+
+  const fragment = bs58.encode(Buffer.from(keccak_256(Buffer.from(did)).slice(0, 8)));
+ 
+  // 5) JWK desde la clave pública
+
+  const x = Buffer.from(pub.getX().toArrayLike(Buffer, "be", 32)).toString("base64url");
+
+  const y = Buffer.from(pub.getY().toArrayLike(Buffer, "be", 32)).toString("base64url");
+ 
+  const jwk = JSON.stringify({
+
+    kty: "EC",
+
+    crv: "secp256k1",
+
+    x,
+
+    y
+
+  });
+ 
+  // 6) Cache OFF-CHAIN
+
+  saveDID({
+
+    did,
+
+    baseDocument,
+
+    fragment,
+
+    publicKeyHex: "0x" + pub.encode("hex", false),
+
+    createdAt: Date.now(),
+
+    alsoKnownAs: alsoKnownAs ?? "",
+
+    type: "root",
+
+    version: 1
+
+  });
+ 
+  console.log(chalk.green(` Root DID creado off-chain: ${did}`));
+ 
+  // 7) Publicación ON-CHAIN
+
+  const now = Math.floor(Date.now() / 1000);
+
+  const oneYear = 365 * 24 * 3600;
+ 
+  const rawTx = await this.didLib.buildInsertFirstDidDocumentTx(
+
+    did,
+
+    baseDocument,
+
+    fragment,
+
+    proof,
+
+    jwk,            // <<=== AQUÍ VA LA JWK!!!  (no baseDocument)
+
+    1,              // secp256k1
+
+    now,
+
+    now + oneYear,
+
+    alsoKnownAs ?? ""
+
+  );
+ 
+  const tx = ethers.Transaction.from(rawTx);
+
+  tx.nonce = await this.provider.getTransactionCount(this.wallet.address, "pending");
+ 
+  const signed = await this.wallet.signTransaction(tx);
+
+  const receipt = await this.didLib.sendSignedTransaction(signed);
+ 
+  console.log(chalk.green(` Root DID publicado en blockchain. Tx: ${receipt.hash}`));
+  const pubUncompressedHex = "0x" + pub.encode("hex", false); // 0x04...
+  const xHex = pub.getX().toString("hex").padStart(64, "0");
+  const yHex = pub.getY().toString("hex").padStart(64, "0");
+  const pubXYHex = "0x" + xHex + yHex;
+  
+  console.log("\n🔑 Clave pública del ROOT DID:");
+  console.log("  • Uncompressed (para add-vm, roll-vm):");
+  console.log("    ", pubUncompressedHex);
+  console.log("  • XY (para operations de insert):");
+  console.log("    ", pubXYHex);
+  console.log();
+  return did;
+
+}
+
+
+  async createChild(privKeyHex: string, baseDocument: string, aka?: string): Promise<string> {
+    console.log(chalk.blueBright("Creando DID secundario (on-chain)…"));
+ 
+    // 1) Normalizar clave privada del CHILD (la que representará al DID)
+    const priv = privKeyHex.startsWith("0x") ? privKeyHex : "0x" + privKeyHex;
+ 
+    const ec = new elliptic.ec("secp256k1");
+    const key = ec.keyFromPrivate(priv.replace(/^0x/, ""), "hex");
+ 
+    // 2) Derivar pública en formato XY (64 bytes, sin 0x04)
+    const pub = key.getPublic();
+    const x = pub.getX().toString("hex").padStart(64, "0");
+    const y = pub.getY().toString("hex").padStart(64, "0");
+    const pubHexXY = "0x" + x + y;
+ 
+    // 3) Firmar para derivar DID (self-sign)
+    const sig = this.selfSignForChild(key);
+    const did = this.buildDIDFromSignature(sig.signatureDER);
+    console.log("DID secundario generado:", chalk.yellow(did));
+ 
+    // 4) Fragmento del método
+    const fragment = this.fragmentFromDid(did);
+ 
+    // 5) Fechas on-chain
+    const now = Math.floor(Date.now() / 1000);
+    const oneYear = 365 * 24 * 60 * 60;
+ 
+    // 6) Construimos la TX on-chain usando la LIB
+    const rawTx = await this.didLib.buildInsertDidDocumentTx(
+      did,
+      baseDocument,
+      fragment,
+      pubHexXY,            // pública en XY
+      this.ellipticType,   // 👈 ahora SÍ está definido (1)
+      now,
+      now + oneYear
+    );
+ 
+    // 7) Parsear y ajustar NONCE, firmar con la ROOT (this.wallet)
+    const tx = ethers.Transaction.from(rawTx);
+    tx.nonce = await this.provider.getTransactionCount(this.wallet.address, "pending");
+ 
+    const signedTx = await this.wallet.signTransaction(tx);
+    const receipt = await this.didLib.sendSignedTransaction(signedTx);
+ 
+    console.log(chalk.green(`✔ DID secundario insertado en blockchain. Tx: ${receipt.hash}`));
+ 
+    // 8) Guardar en storage local (.dids.json)
     saveDID({
       did,
       baseDocument,
       fragment,
-      publicKeyHex,
+      publicKeyHex: pubHexXY,
       createdAt: Date.now(),
-      alsoKnownAs: alsoKnownAs ?? "",
-      version: 1,
-      type: "root"
+      alsoKnownAs: aka ?? "",
+      type: "child",
+      version: 1
     });
-  
-    console.log(chalk.green(` Root DID creado off-chain: ${did}`));
-
-    let baseDocObj;
-    try {
-      baseDocObj = JSON.parse(baseDocument);
-    } catch (err) {
-      console.error(chalk.red(" baseDocument no es JSON válido, no se puede publicar on-chain."));
-      return did;
-    }
-
-    console.log(chalk.cyan("Publicando Root DID en blockchain..."));
-    try {
-      const receipt = await this.updateBaseDocument(did, baseDocObj);
-      console.log(chalk.green(` Root DID publicado correctamente en blockchain`));
-      console.log(`   Tx hash: ${receipt.hash}`);
-    } catch (err: any) {
-      console.error(chalk.red(" Error al publicar Root DID on-chain:"), err.message || err);
-    }
-    return did;
-  } 
-
-  async createChild(privKey: string, baseDocument: string, alsoKnownAs?: string): Promise<string> {
-    console.log(chalk.cyan("\n Creando Child DID..."));
-    const key = this.ec.keyFromPrivate(privKey.replace(/^0x/, ""), "hex");
-    const pubUncompressed = Buffer.from(key.getPublic().encode("hex", false), "hex");
-    const pubXY = pubUncompressed.slice(1);
-
-    const sig = key.sign(keccak_256(pubXY), { canonical: true });
-    const r = sig.r.toArrayLike(Buffer, "be", 32);
-    const s = sig.s.toArrayLike(Buffer, "be", 32);
-    const v = (sig.recoveryParam ?? 0) + 27;
-    const proof = Buffer.concat([r, s, Buffer.from([v])]);
-  
-    const didBytes = Buffer.concat([Buffer.from([0x00]), proof.slice(-19)]);
-    const did = `did:isbe:${this.NAMESPACE_CHILD}:${didBytes.toString("hex")}`;
-    const fragment = bs58.encode(Buffer.from(keccak_256(Buffer.from(did)).slice(0, 8)));
-    const publicKeyHex = "0x" + key.getPublic().encode("hex", false);
-  
-    saveDID({
-      did,
-      baseDocument,
-      fragment,
-      publicKeyHex,
-      createdAt: Date.now(),
-      alsoKnownAs: alsoKnownAs ?? "",
-      version: 1,
-      type: "child"
-    });
-  
-    console.log(chalk.green(`Child DID creado off-chain: ${did}`));
-  
-    let baseDocObj;
-    try {
-      baseDocObj = JSON.parse(baseDocument);
-    } catch (err) {
-      console.error(chalk.red(" baseDocument no es JSON válido, no se puede publicar on-chain."));
-      return did;
-    }
-  
-    console.log(chalk.cyan(" Publicando Child DID en blockchain..."));
-    try {
-      const receipt = await this.updateBaseDocument(did, baseDocObj);
-      console.log(chalk.green(` Child DID publicado correctamente en blockchain`));
-      console.log(`   Tx hash: ${receipt.hash}`);
-    } catch (err: any) {
-      console.error(chalk.red("Error al publicar Child DID on-chain:"), err.message || err);
-    }
-  
+ 
+    console.log(chalk.green("✔ Almacenado en storage local (.dids.json)"));
+    const pubUncompressedHex = "0x04" + x + y; // fácil: solo prepender 04
+ 
+    console.log("\n🔑 Clave pública del CHILD DID:");
+    console.log("  • Uncompressed (para add-vm, roll-vm):");
+    console.log("    ", pubUncompressedHex);
+    console.log("  • XY (para insertDidDocument):");
+    console.log("    ", pubHexXY);
+    console.log();
     return did;
   }
+ 
 
   async updateBaseDocument(did: string, baseDocument: any) {
     try {
@@ -219,16 +362,20 @@ export default class DidCommands {
       return all;
   }
 
-  async getDid(did: string): Promise<DIDRecord | null> {
-      const all = readDIDs();
-      const found = all.find(d => d.did === did);
-      if (!found) {
-        console.log(chalk.yellow(`DID ${did} no encontrado.`));
-        return null;
-      }
-      console.log(chalk.blueBright(" DID encontrado:"));
-      console.log(JSON.stringify(found, null, 2));
-      return found;
+  async getDidOnChain(did: string) {
+    console.log(chalk.cyan(`Consultando DID on-chain: ${did}`));
+  
+    const doc = await this.didLib.getDidDocument(did);
+  
+    if (!doc) {
+      console.log(chalk.red("❌ DID no encontrado en blockchain"));
+      return null;
+    }
+  
+    console.log(chalk.green("✔ Documento on-chain encontrado:"));
+    console.log(JSON.stringify(doc, null, 2));
+  
+    return doc;
   }
  
   async getDidByTimestamp(did: string, timestamp: number) {

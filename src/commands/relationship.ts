@@ -5,7 +5,7 @@
 * you may not use this file except in compliance with the License.  
 *  
 * You may obtain a copy of the License at  
-* [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0 "http://www.apache.org/licenses/license-2.0")  
+* http://www.apache.org/licenses/LICENSE-2.0
 *  
 * Unless required by applicable law or agreed to in writing, software  
 * distributed under the License is distributed on an "AS IS" BASIS,  
@@ -15,148 +15,158 @@
 */
 import chalk from "chalk";
 import { JsonRpcProvider, Wallet, TransactionReceipt, ethers } from "ethers";
-import { IDidDocumentDetailed } from "did-isbe-registry";
-import elliptic from "elliptic";
 import { keccak_256 } from "@noble/hashes/sha3";
 import { Buffer } from "node:buffer";
 import bs58 from "bs58";
-import { saveDID } from "../utils/localStorage";
-
+import IDidVerificationMethod from "did-isbe-registry/dist/identity/did-isbe-lib/IDidVerificationMethod.js";
  
 export default class DidRelationship {
   private provider: JsonRpcProvider;
   private wallet: Wallet;
-  private didLib: IDidDocumentDetailed;
-  private ec = new elliptic.ec("secp256k1");
-  private readonly NAMESPACE_ROOT = "root";
-  private readonly NAMESPACE_CHILD = "usecase-demo-01";
- 
+  private vmLib: IDidVerificationMethod;
   constructor(provider: JsonRpcProvider, wallet: Wallet, rpcUrl: string) {
     this.provider = provider;
     this.wallet = wallet;
-    this.didLib = new IDidDocumentDetailed(rpcUrl);
-    this.didLib.configManager.updateConfig({
-      didRegistryAddress: process.env.DID_REGISTRY_ADDRESS
+    this.vmLib = new IDidVerificationMethod(provider);
+    this.vmLib.configManager.updateConfig({
+      didRegistryAddress: process.env.DID_REGISTRY_ADDRESS,
     });
-    this.didLib.contract = this.didLib.configManager.getContract(); 
-    console.log("DID Registry final en didLib.contract:", this.didLib.contract.target);
+    this.vmLib.contract = this.vmLib.configManager.getContract();
+     console.log(
+      "DID Registry en DidRelationship.contract:",
+      (this.vmLib.contract as any).target ?? this.vmLib.contract.address
+    );
   }
  
-  private async sendTransaction(tx: any): Promise<TransactionReceipt> {
-    console.log(chalk.cyan("Preparando envío de transacción..."));
+  private async sendTxRequest(
+    txReq: ethers.TransactionRequest
+  ): Promise<TransactionReceipt> {
+    const request: ethers.TransactionRequest = {
+      ...txReq,
+      gasLimit: txReq.gasLimit ?? 1_500_000n,
+      gasPrice:
+        txReq.gasPrice ?? (await this.provider.getFeeData()).gasPrice ?? 0n,
+      nonce: txReq.nonce ?? (await this.wallet.getNonce()),
+      chainId: txReq.chainId ?? (await this.provider.getNetwork()).chainId,
+    };
+    const sent = await this.wallet.sendTransaction(request);
+    console.log("Tx enviada:", sent.hash);
+    const receipt = await sent.wait();
+    console.log("Confirmada en bloque", receipt.blockNumber);
+    return receipt;
+  }
+ 
+  private generateFragment(did: string): string {
+    const hash = keccak_256(Buffer.from(did + Date.now().toString()));
+    return bs58.encode(Buffer.from(hash.slice(0, 8)));
+  }
+ 
+  private buildVMethodId(did: string, fragment: string) {
+    return `${did}#${fragment}`;
+  }
+ 
+  async addVerificationMethod(
+    did: string,
+    publicKeyHex: string,
+    ellipticType: number = 1
+  ) {
+    console.log(chalk.blueBright(`Añadiendo verificationMethod a ${did}`));
     try {
-      const txResp = await this.wallet.sendTransaction(tx);
-      console.log(chalk.gray(`Tx hash: ${txResp.hash}`));
-      const receipt = await txResp.wait();
-      console.log(chalk.green(`Confirmada en bloque ${receipt.blockNumber}`));
-      return receipt;
+      const fragment = this.generateFragment(did);
+      const vMethodId = this.buildVMethodId(did, fragment);
+      const txReq = (await this.vmLib.buildAddVerificationMethodTx(
+        did,
+        vMethodId,
+        publicKeyHex,
+        ellipticType
+      )) as ethers.TransactionRequest;
+      if (!txReq.data) {
+        console.log(
+          chalk.red(
+            "buildAddVerificationMethodTx devolvió una tx"
+          )
+        );
+      } 
+      const receipt = await this.sendTxRequest(txReq); 
+      console.log(chalk.green("✔ Verification method añadido correctamente"));
+      console.log("Tx:", receipt.hash);
+      console.log("Fragment generado:", fragment);
     } catch (err: any) {
-      console.error(chalk.red("Error al enviar transacción:"), err.message || err);
+      console.error(
+        chalk.red("Error añadiendo verificationMethod:"),
+        err.message || err
+      );
       throw err;
     }
   }
  
-
-
-
-async revokeVerificationMethod(did: string, fragment: string) {
-  console.log(chalk.blueBright(`Revocando verification method ${fragment} en ${did} (on-chain)`));
-  try {
-    if (typeof (this.didLib as any).buildRevokeVerificationMethodTx === "function") {
-      const tx = await (this.didLib as any).buildRevokeVerificationMethodTx(did, fragment);
-      await this.sendTransaction(tx);
-    } else {
-      const didBytes = (this.didLib as any).didToBytes32 ? (this.didLib as any).didToBytes32(did) : undefined;
-      const fragBytes32 = (this.didLib as any).fragmentToBytes32 ? (this.didLib as any).fragmentToBytes32(fragment) : undefined;
-      if (!didBytes || !fragBytes32) {
-        throw new Error("No se puede resolver didBytes/fragmentBytes32 para revoke; la librería no tiene los helpers requeridos.");
-      }
-      const data = this.didLib.contract.interface.encodeFunctionData("revokeVerificationMethod", [didBytes, fragBytes32]);
-      const txReq: any = {
-        to: await this.didLib.contract.getAddress(),
-        data,
-        gasLimit: 1500000,
-        nonce: await this.provider.getTransactionCount(this.wallet.address, "pending"),
-      };
-      await this.sendTransaction(txReq);
-    }
- 
-    console.log(chalk.green("Verification method revocado on-chain."));
- 
-    try {
-      const entry = findDID(did);
-      if (entry && (entry as any).vMethods) {
-        const vMethods = (entry as any).vMethods.map((vm: any) =>
-          vm.fragment === fragment ? { ...vm, revoked: true, revokedAt: new Date().toISOString() } : vm
-        );
-        updateDID(did, { ...(entry as any), vMethods });
-        console.log(chalk.green("Store local actualizado (revocado)."));
-      }
-    } catch (e: any) {
-      console.log(chalk.yellow("No se pudo actualizar store local al revocar vMethod:"), e.message);
-    }
-  } catch (e: any) {
-    console.error(chalk.red("Error al revocar verification method:"), e.message || e);
-    throw e;
-  }
-}
-async addVerificationMethod(did: string, publicKeyHex: string, name = "vMethod", notBefore?: number, notAfter?: number) {
-  console.log(chalk.blueBright(`Añadiendo verification method a ${did} (on-chain)`));
-  try {
-    const fragment = bs58.encode(Buffer.from(keccak_256(Buffer.from(did + Date.now().toString())).slice(0, 8)));
-    const nb = notBefore ?? this.normalizeTime();
-    const na = notAfter ?? (nb + 365 * 24 * 60 * 60);
-    const baseDoc = "{}";
-    const rawTx = await this.didLib.buildInsertDidDocumentTx(
+  async revokeVerificationMethod(
+    did: string,
+    fragment: string,
+    notAfter: number = Math.floor(Date.now() / 1000)
+  ) {
+    console.log(chalk.blue(`Revocando ${fragment} en ${did}`)); 
+    const vMethodId = this.buildVMethodId(did, fragment); 
+    const txReq = (await this.vmLib.buildRevokeVerificationMethodTx(
       did,
-      baseDoc,
-      fragment,
-      publicKeyHex,
-      1, 
-      nb,
-      na
+      vMethodId,
+      notAfter
+    )) as ethers.TransactionRequest;
+    const receipt = await this.sendTxRequest(txReq);
+    console.log(chalk.green(` Revocado on-chain. Tx: ${receipt.hash}`));
+  }
+ 
+  async expireVerificationMethod(
+    did: string,
+    fragment: string,
+    newNotAfter: number
+  ) {
+    console.log(
+      chalk.blue(`Expirando verificationMethod ${fragment} en ${did}`)
     );
+    const vMethodId = this.buildVMethodId(did, fragment);
+    const txReq = (await this.vmLib.buildExpireVerificationMethodTx(
+      did,
+      vMethodId,
+      newNotAfter
+    )) as ethers.TransactionRequest;
+    const receipt = await this.sendTxRequest(txReq);
+    console.log(chalk.green(`Expirado on-chain. Tx: ${receipt.hash}`));
+  }
  
-    const tx = ethers.Transaction.from(rawTx);
-    tx.nonce = await this.provider.getTransactionCount(this.wallet.address, "pending");
-    const signed = await this.wallet.signTransaction(tx);
-    await this.didLib.sendSignedTransaction(signed);
+  async rollVerificationMethod(
+    did: string,
+    oldFragment: string,
+    newPublicKeyHex: string,
+    ellipticType = 1,
+    duration = 365 * 24 * 60 * 60
+  ) {
+    console.log(
+      chalk.blue(`Rotando verificationMethod ${oldFragment} en ${did}`)
+    );
+    const now = Math.floor(Date.now() / 1000);
+    const newFragment = this.generateFragment(did);
+    const oldVMethodId = this.buildVMethodId(did, oldFragment);
+    const newVMethodId = this.buildVMethodId(did, newFragment);
+     const args = {
+      did,
+      vMethodId: newVMethodId,
+      publicKey: newPublicKeyHex,
+      ellipticType,
+      notBefore: now,
+      notAfter: now + duration,
+      oldVMethodId,
+      duration,
+    };
  
-    console.log(chalk.green("Verification method añadido on-chain."));
- 
-    try {
-      const entry = findDID(did);
-      if (entry) {
-        const current = { ...(entry as any) };
-        const vMethods = current.vMethods || [];
-        vMethods.push({
-          name,
-          fragment,
-          publicKeyHex,
-          notBefore: new Date(nb * 1000).toISOString(),
-          notAfter: new Date(na * 1000).toISOString(),
-        });
-        updateDID(did, { ...(current), vMethods });
-      } else {
-        const newEntry: DIDEntry = {
-          did,
-          baseDocument: baseDoc,
-          fragment,
-          publicKeyHex,
-          version: 1,
-          createdAt: new Date().toISOString(),
-          type: "child",
-          aka: "",
-        };
-        saveDID(newEntry);
-      }
-      console.log(chalk.green("Store local actualizado con verification method."));
-    } catch (e: any) {
-      console.log(chalk.yellow("No se pudo actualizar store local con vMethod:"), e.message);
-    }
-  } catch (e: any) {
-    console.error(chalk.red("Error al añadir verification method:"), e.message || e);
-    throw e;
+    const txReq = (await this.vmLib.buildRollVerificationMethodTx(
+      args
+    )) as ethers.TransactionRequest; 
+    const receipt = await this.sendTxRequest(txReq);
+    console.log(chalk.green(`Rotado on-chain. Tx: ${receipt.hash}`));
+    console.log("Nuevo fragment:", newFragment);
+    return newFragment;
   }
 }
-}
+
+ 
