@@ -4,9 +4,9 @@
     "baseDocument": "{\"@context\":[\"https://www.w3.org/ns/did/v1\"],\"id\":\"\"}",
     "fragment": "JeBz1jMHsNB",
     "publicKeyHex": "0x043255458e24278e31d5940f304b16300fdff3f6efd3e2a030b5818310ac67af45e28d057e6a332d07e0c5ab09d6947fd4eed1a646edbf224e2d2fec6f49f90abc",
-    "version": 1,
-    "createdAt": 1764011673636,
+    "createdAt": 1764081495459,
     "alsoKnownAs": "Mi DID root",
+    "version": 1,
     "type": "root"
   },
   {
@@ -14,9 +14,20 @@
     "baseDocument": "{\"@context\":[\"https://www.w3.org/ns/did/v1\"],\"id\":\"placeholder\",\"verificationMethod\":[]}",
     "fragment": "Hv2nx17sbu2",
     "publicKeyHex": "0x04931e7fda8da226f799f791eefc9afebcd7ae2b1b19a03c5eaa8d72122d9fe74d887a3962ff861190b531ab31ee82f0d7f255dfe3ab73ca627bd70ab3d1cbb417",
-    "version": 1,
-    "createdAt": 1764011751223,
+    "createdAt": 1764081525251,
     "alsoKnownAs": "nuevo hijo",
+    "version": 1,
     "type": "child"
+  },
+  {
+    "did": "did:isbe:usecase-demo-01:00611abae950a041a85179e2a8e549b8d7c1371b",
+    "baseDocument": "{\"@context\":[\"https://www.w3.org/ns/did/v1\"],\"id\":\"did:REEMPLAZAR\",\"verificationMethod\":[]}",
+    "fragment": "T2zuEncH1eK",
+    "publicKeyHex": "0x0401f2bf1fa920e77a43c7aec2587d0b3814093420cc59a9b3ad66dd5734dda7be6f8b7de790eac3a720fd8e4bcb9eae9434f843d3cec111d9e07adeddeae090f2",
+    "createdAt": 1764081885953,
+    "alsoKnownAs": "Alias Nuevo",
+    "version": 1,
+    "type": "child",
+    "updatedAt": 1764091687830
   }
 ]
