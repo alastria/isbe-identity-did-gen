@@ -97,17 +97,17 @@ program
  
 program
   .command("update-base")
-  .requiredOption("--did <did>", "DID a actualizar")
-  .requiredOption("--baseDocument <json>", "Nuevo baseDocument")
+  .requiredOption("--did <string>", "DID a actualizar")
+  .requiredOption("--baseDocument <json>", "Nuevo baseDocument en JSON")
   .action(async (opts) => {
     try {
-      JSON.parse(opts.baseDocument); // validar
-      await didCLI.updateBaseDocument(opts.did, opts.baseDocument);
-      console.log(chalk.green("update-base finalizado."));
-    } catch (e: any) {
-      console.error(chalk.red("Error en update-base:"), e.message || e);
+      const baseDocument = JSON.parse(opts.baseDocument);
+      await didCLI.updateBaseDocument(opts.did, baseDocument);
+    } catch (err) {
+      console.error("Error en update-base:", err);
     }
   });
+  
  
 program
   .command("update-alias")
@@ -132,7 +132,6 @@ program
         console.log(chalk.yellow("No hay DIDs guardados en .dids.json"));
         return;
       }
-      // muestra tabla resumida
       const table = data.map(d => ({
         did: d.did,
         type: d.type,

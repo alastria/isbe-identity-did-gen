@@ -154,44 +154,32 @@ export default class DidCommands {
 
   async updateBaseDocument(did: string, baseDocument: any) {
     try {
-      console.log(chalk.yellow(`\n Actualizando base document de ${did}...`));
-      const rawSignedTx = await this.didLib.buildUpdateBaseDocumentTx(did, baseDocument);
-      console.log("Raw TX construida (firmada). Enviando...");
-      const txResponse = await this.provider.broadcastTransaction(rawSignedTx);
-      console.log("TX enviada:", txResponse.hash);
-      const receipt = await txResponse.wait();
-  
-      console.log("Receipt:", receipt);
-      console.log(chalk.green("Base document actualizado correctamente."));
-    } catch (err) {
-      console.error("Error en updateBaseDocument");
-      console.error(err);
+      console.log(`Actualizando baseDocument de ${did}`);
+      const baseDocumentStr = JSON.stringify(baseDocument);
+      const tx = await this.didLib.buildUpdateBaseDocumentTx(
+        did,
+        baseDocumentStr
+      );
+      const txRequest: ethers.TransactionRequest = {
+        to: tx.to,
+        data: tx.data,
+        gasLimit: tx.gasLimit,
+        value: tx.value,
+      };
+      const sent = await this.wallet.sendTransaction(txRequest);
+      console.log(" TX enviada:", sent.hash);
+      const receipt = await sent.wait();
+      console.log("BaseDocument actualizado");
+      return receipt;
+      } catch (err) {
+        console.error("Error en updateBaseDocument:", err);
       throw err;
     }
-  }
+}
+ 
 
- 
- 
-  async updateAlsoKnownAs(did: string, aka: string) {
-    console.log(chalk.blueBright(`Actualizando alsoKnownAs de ${did} (on-chain)`));
-    try {
-      const tx = await this.didLib.buildUpdateAlsoKnownAsTx(did, aka);
-      await this.sendTransaction(tx);
-      console.log(chalk.green("alsoKnownAs actualizado on-chain."));
-  
-      // actualizar local
-      try {
-        updateDID(did, { aka });
-        console.log(chalk.green("Store local actualizado."));
-      } catch (e: any) {
-        console.log(chalk.yellow("No se pudo actualizar store local:"), e.message);
-      }
-    } catch (e: any) {
-      console.error(chalk.red("Error al actualizar alias:"), e.message || e);
-      throw e;
-    }
-  }
- 
+
+
   async listAll(): Promise<DIDRecord[]> {
       const all = loadDIDs();
       console.log(chalk.blueBright("DIDs encontrados:"));

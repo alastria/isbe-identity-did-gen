@@ -1,0 +1,22 @@
+[
+  {
+    "did": "did:isbe:root:0059dc1039086835f11ed8c3b4fc49656de2311c",
+    "baseDocument": "{\"@context\":[\"https://www.w3.org/ns/did/v1\"],\"id\":\"\"}",
+    "fragment": "JeBz1jMHsNB",
+    "publicKeyHex": "0x043255458e24278e31d5940f304b16300fdff3f6efd3e2a030b5818310ac67af45e28d057e6a332d07e0c5ab09d6947fd4eed1a646edbf224e2d2fec6f49f90abc",
+    "version": 1,
+    "createdAt": 1764011673636,
+    "alsoKnownAs": "Mi DID root",
+    "type": "root"
+  },
+  {
+    "did": "did:isbe:usecase-demo-01:0072c99356b8d293feca55f26bd033334ff0921c",
+    "baseDocument": "{\"@context\":[\"https://www.w3.org/ns/did/v1\"],\"id\":\"placeholder\",\"verificationMethod\":[]}",
+    "fragment": "Hv2nx17sbu2",
+    "publicKeyHex": "0x04931e7fda8da226f799f791eefc9afebcd7ae2b1b19a03c5eaa8d72122d9fe74d887a3962ff861190b531ab31ee82f0d7f255dfe3ab73ca627bd70ab3d1cbb417",
+    "version": 1,
+    "createdAt": 1764011751223,
+    "alsoKnownAs": "nuevo hijo",
+    "type": "child"
+  }
+]
