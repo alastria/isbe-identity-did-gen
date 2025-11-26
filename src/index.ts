@@ -1,3 +1,17 @@
+/**  
+* Copyright (c) 2025 Comunidad de Madrid & Alastria  
+*  
+* Licensed under the Apache License, Version 2.0 (the "License");  
+* you may not use this file except in compliance with the License.  
+*  
+* You may obtain a copy of the License at  
+* [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0 "http://www.apache.org/licenses/license-2.0")  
+*  
+* Unless required by applicable law or agreed to in writing, software  
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  
+* See the License for the specific language governing permissions and  
+* limitations under the License.  
+*/
 import dotenv from "dotenv";
 dotenv.config();
 import { Command } from "commander";
@@ -8,6 +22,8 @@ import DidRelationship from "./commands/relationship"
 import { isRegistryInitialized } from "./utils/isRegistryInitialized";
 import { loadRootWallet } from "./utils/loadRootWallet";
 import { readDIDs, findDID } from "./utils/localStorage";
+import DidControllerCLI from "./commands/controller";
+import VerificationCLI from "./commands/verification";
 import fs from "fs";
 
  
@@ -105,7 +121,7 @@ program
     }
   });
   
- 
+
 program
   .command("update-alias")
   .requiredOption("--did <did>", "DID a actualizar")
@@ -140,6 +156,24 @@ program
       console.error(chalk.red("Error leyendo storage local:"), e.message || e);
     }
   });
+
+program
+  .command("list-onchain")
+  .description("Lista los DIDs almacenados en la blockchain con paginación")
+  .option("--page <num>", "Página", "1")
+  .option("--pageSize <num>", "Tamaño de página", "10")
+  .action(async (opts) => {
+    try {
+      const page = Number(opts.page);
+      const size = Number(opts.pageSize);
+  
+      const result = await didCLI.listOnChainDIDs(page, size);
+      console.log(chalk.blue("\nResultado on-chain:\n"));
+      console.log(JSON.stringify(result, null, 2));
+    } catch (err: any) {
+      console.error(chalk.red("Error en list-onchain:"), err.message || err);
+    }
+  });
  
 program
   .command("get-did")
@@ -158,7 +192,24 @@ program
       console.error(chalk.red("Error en get-did:"), e.message || e);
     }
   });
- 
+program
+  .command("get-did-by-timestamp-onchain")
+  .requiredOption("--did <did>", "DID a consultar")
+  .requiredOption("--timestamp <ts>", "Timestamp en segundos")
+  .option("--format <hex|jwk>", "Formato del resultado", "hex")
+  .description("Consulta un DID histórico directamente en blockchain")
+  .action(async (opts) => {
+    try {
+      await didCLI.getDidByTimestampOnChain(
+        opts.did,
+        Number(opts.timestamp),
+        opts.format
+      );
+    } catch (e: any) {
+      console.error(chalk.red("Error en get-did-by-timestamp-onchain:"), e.message || e);
+    }
+});
+
 program
   .command("get-did-by-timestamp")
   .requiredOption("--did <did>", "DID a consultar")
@@ -170,9 +221,11 @@ program
  
 function initEnvironment() {
   const relationship = new DidRelationship(provider, signerToUse, RPC_URL);
-  return { relationship };
+  const controller = new DidControllerCLI(provider, signerToUse, RPC_URL);
+  const verification = new VerificationCLI(provider, signerToUse);
+  return { relationship, controller, verification };
 }
-
+ 
 program
   .command("add-vm")
   .requiredOption("--did <did>", "DID")
@@ -188,8 +241,6 @@ program
     );
   });
 
- 
-
 program
   .command("revoke-vm")
   .requiredOption("--did <did>", "DID")
@@ -203,8 +254,7 @@ program
       opts.fragment,
       opts.notAfter ? Number(opts.notAfter) : undefined
     );
-  });
-
+ });
  
 
 program
@@ -242,6 +292,94 @@ program
       Number(opts.duration)
     );
   });
+
+ 
+program
+  .command("add-controller")
+  .requiredOption("--did <did>", "DID al que se añadirá el controller")
+  .requiredOption(
+    "--controller <controllerDid>",
+    "DID del controller (ej: did:isbe:root:...)"
+  )
+  .action(async (opts) => {
+    const { controller } = initEnvironment();
+    await controller.addController(opts.did, opts.controller);
+  });
+ 
+program
+  .command("revoke-controller")
+  .requiredOption("--did <did>", "DID objetivo")
+  .requiredOption(
+    "--controller <controllerDid>",
+    "DID del controller a revocar"
+  )
+  .action(async (opts) => {
+    const { controller } = initEnvironment();
+    await controller.revokeController(opts.did, opts.controller);
+  });
+ 
+program
+  .command("check-controller")
+  .requiredOption("--did <did>", "DID objetivo")
+  .requiredOption(
+    "--controller <address>",
+    "Address Ethereum del controller (0x...)"
+  )
+  .action(async (opts) => {
+    const { controller } = initEnvironment();
+    await controller.check(opts.did, opts.controller);
+  });
+ 
+program
+  .command("list-dids-by-controller")
+  .requiredOption(
+    "--controller <controllerDid>",
+    "DID del controller (ej: did:isbe:root:...)"
+  )
+  .option("--page <n>", "Página", "0")
+  .option("--pageSize <n>", "Tamaño de página", "10")
+  .action(async (opts) => {
+    const { controller } = initEnvironment();
+    await controller.listByController(
+      opts.controller,
+      Number(opts.page),
+      Number(opts.pageSize)
+    );
+  });
+
+  program
+  .command("add-verification-rel")
+  .requiredOption("--did <did>", "DID objetivo")
+  .requiredOption("--name <string>", "Nombre de la relación (authentication, assertionMethod, etc.)")
+  .requiredOption("--vm <vMethodId>", "Verification Method ID")
+  .option("--notBefore <num>", "Timestamp notBefore", "")
+  .option("--notAfter <num>", "Timestamp notAfter", "")
+  .action(async (opts) => {
+    const { did, name, vm } = opts;
+    const nb = opts.notBefore ? Number(opts.notBefore) : undefined;
+    const na = opts.notAfter ? Number(opts.notAfter) : undefined;
+    const { verification } = initEnvironment();
+    await verification.addRelationship(did, name, vm, nb, na);
+  });
+ 
+program
+  .command("list-dids-by-verification-rel")
+  .requiredOption("--vm <vMethodId>", "Verification Method ID")
+  .requiredOption("--name <string>", "Nombre del verification relationship")
+  .option("--page <num>", "Página", "1")
+  .option("--pageSize <num>", "Tamaño de página", "10")
+  .action(async (opts) => {
+    const page = Number(opts.page);
+    const pageSize = Number(opts.pageSize);
+    const { verification } = initEnvironment();
+    await verification.listDidsByRelationship(
+      opts.vm,
+      opts.name,
+      page,
+      pageSize
+    );
+  }); 
+
 program.parse();
 
  

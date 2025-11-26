@@ -24,6 +24,7 @@ export default class DidRelationship {
   private provider: JsonRpcProvider;
   private wallet: Wallet;
   private vmLib: IDidVerificationMethod;
+  
   constructor(provider: JsonRpcProvider, wallet: Wallet, rpcUrl: string) {
     this.provider = provider;
     this.wallet = wallet;
@@ -88,7 +89,7 @@ export default class DidRelationship {
         );
       } 
       const receipt = await this.sendTxRequest(txReq); 
-      console.log(chalk.green("✔ Verification method añadido correctamente"));
+      console.log(chalk.green(" Verification method añadido correctamente"));
       console.log("Tx:", receipt.hash);
       console.log("Fragment generado:", fragment);
     } catch (err: any) {

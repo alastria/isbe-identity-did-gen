@@ -12,73 +12,82 @@
 * See the License for the specific language governing permissions and  
 * limitations under the License.  
 */
-
-import { JsonRpcProvider, Wallet } from "ethers";
 import chalk from "chalk";
-import IDidVerificationMethod, { RollArgs } from "../../../../libs/did-isbe-lib/identity/didregistry/IDidVerificationMethod";
+import { JsonRpcProvider, Wallet, ethers } from "ethers";
+import IDidVerificationRelationship from "did-isbe-registry/dist/identity/did-isbe-lib/IDidVerificationRelationship.js";
  
-export default class DidVerificationMethodCLI {
-  private vm: IDidVerificationMethod;
+export default class VerificationCLI {
+  private provider: JsonRpcProvider;
+  private wallet: Wallet;
+  private vrLib: IDidVerificationRelationship;
  
-  constructor(rpcUrl: string, privateKey: string) {
-    const provider = new JsonRpcProvider(rpcUrl);
- 
-    const wallet = new Wallet(privateKey, provider);
- 
-    this.vm = new IDidVerificationMethod(wallet);
+  constructor(provider: JsonRpcProvider, wallet: Wallet) {
+    this.provider = provider;
+    this.wallet = wallet;
+    this.vrLib = new IDidVerificationRelationship(provider);
   }
  
-  private async handleTx(promise: Promise<any>, label: string) {
-    try {
-      const tx = await promise;
+  async addRelationship(
+    did: string,
+    name: string,
+    vMethodId: string,
+    notBefore?: number,
+    notAfter?: number
+  ) {
+    console.log(chalk.blue(" Añadiendo Verification Relationship:"));
+    console.log("   DID:", did);
+    console.log("   name:", name);
+    console.log("   vMethodId:", vMethodId);
  
-      if (tx && typeof tx === "object" && "hash" in tx) {
-        console.log(chalk.green(`${label} tx:`), tx.hash);
-      } else {
-        console.log(
-          chalk.yellow(`${label}: no se devolvió transacción (posible revert o llamada view)`)
-        );
-        console.log(chalk.gray("Valor devuelto:"), tx);
-      }
-      return tx;
-    } catch (err: any) {
-      console.error(chalk.red(`${label} error:`), err);
-      if (err?.error?.data) {
-        console.log(chalk.magenta("EVM revert data:"), err.error.data);
-      }
-      return null;
+    const now = Math.floor(Date.now() / 1000);
+    const nb = notBefore ?? now;
+    const na = notAfter ?? now + 365 * 24 * 3600;
+ 
+    const rawTx = await this.vrLib.buildAddVerificationRelationshipTx(
+      did,
+      name,
+      vMethodId,
+      nb,
+      na
+    );
+ 
+    const tx = ethers.Transaction.from(rawTx);
+    tx.nonce = await this.provider.getTransactionCount(this.wallet.address, "pending");
+ 
+    const signed = await this.wallet.signTransaction(tx);
+    const receipt = await this.vrLib.sendSignedTransaction(signed);
+ 
+    console.log(chalk.green(`Verification Relationship añadida. Tx: ${receipt.hash}`));
+    return receipt;
+  }
+
+  async listDidsByRelationship(
+    vMethodId: string,
+    name: string,
+    page: number,
+    pageSize: number
+  ) {
+    console.log(
+      chalk.blue(
+        `Listando DIDs por Verification Relationship (vMethodId=${vMethodId}, name=${name}) page=${page}, size=${pageSize}`
+      )
+    );
+ 
+    if (page === 0) {
+      console.log(chalk.yellow(" page=0 no es válido para esta librería → usando page=1"));
+      page = 1;
     }
-  }
  
-  async add(did: string, vMethodId: string, publicKey: string, ellipticType: number) {
-    console.log(chalk.yellow("Añadiendo verification method..."));
-    return this.handleTx(
-      this.vm.addVerificationMethod(did, vMethodId, publicKey, ellipticType),
-      "addVerificationMethod"
+    const res = await this.vrLib.getDidsByVerificationRelationship(
+      vMethodId,
+      name,
+      page,
+      pageSize
     );
-  }
  
-  async expire(did: string, vMethodId: string, notAfter: number) {
-    console.log(chalk.yellow("Expirando verification method..."));
-    return this.handleTx(
-      this.vm.expireVerificationMethod(did, vMethodId, notAfter),
-      "expireVerificationMethod"
-    );
-  }
+    console.log(chalk.green(" Consulta completada:"));
+    console.log(JSON.stringify(res, null, 2));
  
-  async revoke(did: string, vMethodId: string, notAfter: number) {
-    console.log(chalk.yellow("Revocando verification method..."));
-    return this.handleTx(
-      this.vm.revokeVerificationMethod(did, vMethodId, notAfter),
-      "revokeVerificationMethod"
-    );
-  }
- 
-  async roll(args: RollArgs) {
-    console.log(chalk.yellow("Haciendo rollover de verification method..."));
-    return this.handleTx(
-      this.vm.rollVerificationMethod(args),
-      "rollVerificationMethod"
-    );
+    return res;
   }
 }
