@@ -131,8 +131,6 @@ El artefacto implementa los siguientes requisitos:
 
 ## 4.3. Descripción funcional detallada
 
----
-
 ### 4.3.1. Gestión de DIDs
 
 #### Comandos principales
@@ -385,7 +383,3 @@ No aplica.
 ---
 
 **Copyright © 2025 Comunidad de Madrid & Alastria**
-
-```
-
-```
