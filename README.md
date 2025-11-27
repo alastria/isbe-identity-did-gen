@@ -1,11 +1,5 @@
 # ISBE DID Registry CLI
 
-**ID:** ISBE-ART-CLI-00001  
-**Versión:** 1.0.0  
-**Estado:** Validado  
-**Fecha:** 2025-11-26  
-**Repositorio:** [GitHub](https://github.com/alastria/isbe-identity-did-cli)
-
 CLI oficial para gestionar identidades del método `did:isbe` directamente contra el smart contract ISBE DID Registry. Permite crear, administrar y consultar identidades, verification methods, controllers, alias y relationships de forma on-chain y off-chain.
 
 ---
