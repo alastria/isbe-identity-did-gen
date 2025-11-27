@@ -1,322 +1,266 @@
+# ISBE DID Registry CLI
 
-*artifact*:
-  id: ISBE-ART-CLI-00001
-  name: "ISBE DID Registry CLI"
-  type: "Command Line Interface"
-  version: "1.0.0"
-  status: "Validado"
-  date: "2025-11-26"
-  repository: "https://github.com/alastria/isbe-identity-did-cli"
-  description: >
-    CLI oficial para gestionar identidades del método did:isbe directamente 
-    contra el smart contract ISBE DID Registry. Permite crear, administrar y 
-    consultar identidades, verification methods, controllers, alias y relationships
-    de forma on-chain y off-chain.
-
-*sections:*
-
-  identification:
-    nombre: "ISBE DID Registry CLI"
-    origen: "Desarrollo oficial de ISBE sobre el método did:isbe"
-    estado: "Validado"
-    versión_documento: "1.0.0"
-    fecha: "2025-11-26"
-    repositorio: "https://github.com/alastria/isbe-identity-did-cli"
-
- 
-
-  *propósito:*
-    objetivo_funcional: >
-      Proporcionar una herramienta CLI para interacción directa con los 
-      contratos inteligentes del ISBE DID Registry, permitiendo operaciones 
-      completas de administración de identidades did:isbe.
-    *beneficios:*
-      - Interoperabilidad con todo el ecosistema DID.
-      - Gestión integral de identidades: creación, rotación, expiración, relaciones.
-      - Uso por wallets, integradores, desarrolladores y scripts automatizados.
-      - Abstracción de la complejidad de los smart contracts.
-    *stakeholders:*
-      - Squads de desarrollo ISBE
-      - Integradores de sistemas
-      - Wallets y proveedores de identidad
-      - Organismos reguladores
-      - Desarrolladores backend y devops
-
- 
-
-  *alcance_y_ciclo_de_vida:*
-    fases:
-      definición: "Completada"
-      desarrollo: "Completada: comandos, librerías, pruebas"
-      mantenimiento: "Activa y planificada"
-    dependencias:
-      - "ISBE DID Registry Smart Contract"
-      - "ethers.js v6"
-      - "did-isbe-registry-dev"
-    alcance:
-      incluye:
-        - creación de DIDs root y secundarios
-        - administración completa de verification methods
-        - controllers
-        - relationships
-        - alias on/off chain
-        - consulta on-chain y local
-      excluye:
-        - resolución REST (cubierto por did-isbe-resolver)
-        - UI o dashboard gráfico
-
- 
-
-  *arquitectura:*
-    visión_general: >
-      La CLI está construida en Node.js + TypeScript, utilizando ethers.js para 
-      comunicarse con el contrato. Cada comando llama a métodos de alto nivel 
-      proporcionados por did-isbe-registry-dev.
-    componentes:
-      cli:
-        - index.ts
-        - uso de commander.js
-      comandos:
-        - document.ts
-        - controller.ts
-        - verification.ts
-        - relationships.ts
-      utilidades:
-        - localStorage.ts
-        - didParser.ts
-        - helpers
-      archivos_locales:
-        - .did_root
-        - .dids.json
-
- 
-
-  *instalación:*
-    requisitos:
-      node: ">= 18"
-      npm: ">= 9"
-      rpc: "Compatible EVM"
-      env_file:
-        RPC_URL: "http://127.0.0.1:8545"
-        ACCOUNT_PRIVATE_KEY: "<clave>"
-        DID_REGISTRY_ADDRESS: "<contrato>"
-    pasos:
-      - "npm install"
-      - "npx tsx src/index.ts <command>"
+**ID:** ISBE-ART-CLI-00001  
+**Versión:** 1.0.0  
+**Estado:** Validado  
+**Fecha:** 2025-11-26  
+**Repositorio:** [GitHub](https://github.com/alastria/isbe-identity-did-cli)
 
- 
+CLI oficial para gestionar identidades del método `did:isbe` directamente contra el smart contract ISBE DID Registry. Permite crear, administrar y consultar identidades, verification methods, controllers, alias y relationships de forma on-chain y off-chain.
 
-  *comandos:* 
+---
 
-    init:
-      descripción: "Inicializa el contrato si no ha sido inicializado. Crea un Root DID."
-      ejemplo: "npx tsx src/index.ts init 1"
+## 1. Identificación del Artefacto
 
- 
+| Campo                | Valor                                                       |
+| -------------------- | ----------------------------------------------------------- |
+| Nombre del artefacto | ISBE DID Registry CLI                                       |
+| Origen               | Desarrollo oficial de ISBE sobre el método did:isbe         |
+| Estado               | Validado                                                    |
+| Versión documento    | 1.0.0                                                       |
+| Fecha                | 2025-11-26                                                  |
+| Repositorio          | [GitHub](https://github.com/alastria/isbe-identity-did-cli) |
 
-    create_root:
-      descripción: "Crea un DID Root"
-      ejemplo: >
-        npx tsx src/index.ts create-root <PRIVKEY> '{}' --aka "Mi DID Root"
+---
 
- 
+## 2. Propósito del Artefacto
 
-    create_secondary:
-      descripción: "Crea un DID secundario controlado por un Root DID"
-      ejemplo: >
-        npx tsx src/index.ts createSecondary <ROOT_PRIV_KEY> '{"id":"","publicKey":[]}'
+### Objetivo funcional
 
- 
+Proporcionar una herramienta CLI para interacción directa con los contratos inteligentes del ISBE DID Registry, permitiendo operaciones completas de administración de identidades `did:isbe`.
 
-    get_did:
-      descripción: "Consulta un DID y muestra documento on-chain y local"
-      ejemplo: >
-        npx tsx src/index.ts get-did --did "did:isbe:network:00abc123"
+### Beneficios
 
- 
+- Interoperabilidad con todo el ecosistema DID.
+- Gestión integral de identidades: creación, rotación, expiración, relaciones.
+- Uso por wallets, integradores, desarrolladores y scripts automatizados.
+- Abstracción de la complejidad de los smart contracts.
 
-    get_did_by_timestamp:
-      descripción: "Consulta el DID document en un instante del tiempo"
-      ejemplo: >
-        npx tsx src/index.ts get-did-by-timestamp --did <did> --timestamp 1735600000
+### Stakeholders
 
- 
+- Squads de desarrollo ISBE
+- Integradores de sistemas
+- Wallets y proveedores de identidad
+- Organismos reguladores
+- Desarrolladores backend y DevOps
 
-    ###Verification Methods
+---
 
- 
+## 3. Alcance y Ciclo de Vida
 
-    add_vm:
-      descripción: "Añade un Verification Method"
-      ejemplo: >
-        npx tsx src/index.ts add-vm --did <did> --pub <pubKey> --curve 1
+### Fases
 
- 
+| Fase                 | Estado                                   |
+| -------------------- | ---------------------------------------- |
+| Definición funcional | Completado                               |
+| Desarrollo           | Completado: comandos, librerías, pruebas |
+| Mantenimiento        | Activa y planificada                     |
 
-    revoke_vm:
-      descripción: "Revoca un VM"
-      ejemplo: >
-        npx tsx src/index.ts revoke-vm --did <did> --vm <fragment>
+### Dependencias
 
- 
+- ISBE DID Registry Smart Contract
+- ethers.js v6
+- did-isbe-registry-dev
 
-    expire_vm:
-      descripción: "Expira un VM"
-      ejemplo: >
-        npx tsx src/index.ts expire-vm --did <did> --vm <fragment> --notAfter <timestamp>
+### Alcance
 
- 
+**Incluye:**
 
-    roll_vm:
-      descripción: "Rota un VM generando un nuevo fragment"
-      ejemplo: >
-        npx tsx src/index.ts roll-vm --did <did> --old <fragment> --pub <newPub> --curve 1
+- Creación de DIDs root y secundarios
+- Administración completa de verification methods
+- Controllers
+- Relationships
+- Alias on/off chain
+- Consulta on-chain y local
 
- 
+**Excluye:**
 
-    ### Verification Relationships
+- Resolución REST (cubierto por did-isbe-resolver)
+- UI o dashboard gráfico
 
- 
+---
 
-    add_verification_rel:
-      descripción: "Asocia un VM a una relación (authentication, assertionMethod...)"
-      ejemplo: >
-        npx tsx src/index.ts add-verification-rel \
-          --did <did> \
-          --name authentication \
-          --vm "<did#fragment>" \
-          --notBefore 1735600000 \
-          --notAfter 1767136000
+## 4. Arquitectura
 
- 
+### Visión General
 
-    list_dids_by_relationship:
-      descripción: "Obtiene todos los DIDs vinculados a un VM mediante una relación"
-      ejemplo: >
-        npx tsx src/index.ts list-dids-by-verification-rel \
-          --vm <did#fragment> \
-          --name authentication \
-          --page 1 --pageSize 10
+La CLI está construida en Node.js + TypeScript, utilizando ethers.js para comunicarse con el contrato. Cada comando llama a métodos de alto nivel proporcionados por `did-isbe-registry-dev`.
 
-    ### Controllers
+### Componentes
 
-    add_controller:
-      descripción: "Añade un controller a un DID"
-      ejemplo: >
-        npx tsx src/index.ts add-controller --did <did> --controller <controllerDid>
+- **CLI**
+  - index.ts
+  - uso de commander.js
+- **Comandos**
+  - document.ts
+  - controller.ts
+  - verification.ts
+  - relationships.ts
+- **Utilidades**
+  - localStorage.ts
+  - didParser.ts
+  - helpers
+- **Archivos locales**
+  - .did_root
+  - .dids.json
 
- 
+---
 
-    remove_controller:
-      descripción: "Quita controller"
-      ejemplo: "npx tsx src/index.ts remove-controller --did <did>"
-
-
-    ### Alias
-
-    update_alias:
-      descripción: "Actualiza alias local"
-      ejemplo: "npx tsx src/index.ts update-alias --did <did> --aka 'Nuevo alias'"
-
- 
-
-    update_alias_onchain:
-      descripción: "Actualiza alias on-chain"
-      ejemplo: >
-        npx tsx src/index.ts update-alias-onchain --did <did> --alsoKnownAs "public-alias"
-
- 
-
-    ###Listado local
-
- 
-
-    list:
-      descripción: "Lista los DIDs almacenados localmente"
-      ejemplo: "npx tsx src/index.ts list"
-
- 
-
-  *almacenamiento_local:*
-    archivos:
-      did_root: "Llave privada del Root DID"
-      dids_json: "DIDs creados, alias, timestamps"
-    estructura:
-      did_entry:
-        did: "did:isbe:..."
-        type: "root | child"
-        owner: "publicKey"
-        alsoKnownAs: "string"
-        createdAt: "timestamp"
-        updatedAt: "timestamp"
-
- 
-
-  *calidad:*
-    pruebas:
-      framework: "Jest"
-      cobertura:
-        - validación de DIDs
-        - creación de VMs
-        - controllers
-        - relationships
-        - almacenamiento local
-        - integración con contratos
-    buenas_prácticas:
-      - validación estricta
-      - manejo de errores ethers.js
-      - tipado fuerte TypeScript
-      - modularidad por comando
-
- 
-
-  *reglas_de_negocio:*
-    vm:
-      revoked_no_eliminar: "Los VM revocados se mantienen si tienen relaciones vigentes"
-      relación_tiempo: >
-        Las relaciones dependen de notBefore / notAfter. Si se consulta un timestamp donde la
-        relación era válida, se mostrará aunque se haya modificado después.
-    controllers:
-      root_requerido: "Un Root DID controla sus hijos de manera predeterminada"
-
- 
-
-  *dependencias:*
-    node: ">=18"
-    librerías:
-      - ethers.js 6.x
-      - did-isbe-registry-dev
-      - commander.js
-      - dotenv
-      - tsx
-      - typescript
-
- 
-
-  *limitaciones:*
-    - método exclusivo did:isbe
-    - requiere disponibilidad del RPC
-    - requiere contrato desplegado
-    - no resuelve documentos vía API REST (solo on-chain)
-
- 
-
-  *control_de_versiones:*
-    esquema: "SemVer"
-    cambios:
-      menor:
-        aprobación: "Pull request + revisión técnica"
-        documentación: "Release notes"
-      mayor:
-        aprobación: "Comité técnico ISBE"
-        documentación: "Informe de impacto"
-      hotfix:
-        aprobación: "Urgente"
-        documentación: "Pruebas adjuntas"
-
-
-  *licencia:*
-    tipo: "Apache 2.0"
-    copyright:
-      owner: "Comunidad de Madrid & Alastria"
-      year: 2025
+## 5. Instalación
+
+### Requisitos
+
+- Node.js >= 18
+- npm >= 9
+- RPC compatible EVM
+- Archivo `.env` con:
+  - `RPC_URL=http://127.0.0.1:8545`
+  - `ACCOUNT_PRIVATE_KEY=<clave>`
+  - `DID_REGISTRY_ADDRESS=<contrato>`
+
+### Pasos
+
+```bash
+npm install
+npx tsx src/index.ts <command>
+```
+
+## DID Registry CLI - Comandos
+
+### 1. Comandos Principales
+
+#### Inicialización
+
+| Comando              | Descripción                                                          | Ejemplo                                                                           |
+| -------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| init                 | Inicializa el contrato si no ha sido inicializado. Crea un Root DID. | `npx tsx src/index.ts init 1`                                                     |
+| create-root          | Crea un DID Root                                                     | `npx tsx src/index.ts create-root <PRIVKEY> '{}' --aka "Mi DID Root"`             |
+| createSecondary      | Crea un DID secundario controlado por un Root DID                    | `npx tsx src/index.ts createSecondary <ROOT_PRIV_KEY> '{"id":"","publicKey":[]}'` |
+| get-did              | Consulta un DID y muestra documento on-chain y local                 | `npx tsx src/index.ts get-did --did "did:isbe:network:00abc123"`                  |
+| get-did-by-timestamp | Consulta el DID document en un instante del tiempo                   | `npx tsx src/index.ts get-did-by-timestamp --did <did> --timestamp 1735600000`    |
+
+---
+
+### 2. Verification Methods (VM)
+
+| Comando   | Descripción                            | Ejemplo                                                                              |
+| --------- | -------------------------------------- | ------------------------------------------------------------------------------------ |
+| add-vm    | Añade un Verification Method           | `npx tsx src/index.ts add-vm --did <did> --pub <pubKey> --curve 1`                   |
+| revoke-vm | Revoca un VM                           | `npx tsx src/index.ts revoke-vm --did <did> --vm <fragment>`                         |
+| expire-vm | Expira un VM                           | `npx tsx src/index.ts expire-vm --did <did> --vm <fragment> --notAfter <timestamp>`  |
+| roll-vm   | Rota un VM generando un nuevo fragment | `npx tsx src/index.ts roll-vm --did <did> --old <fragment> --pub <newPub> --curve 1` |
+
+---
+
+### 3. Verification Relationships
+
+| Comando                       | Descripción                                                      | Ejemplo                                                                                                                                          |
+| ----------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| add-verification-rel          | Asocia un VM a una relación (authentication, assertionMethod...) | `npx tsx src/index.ts add-verification-rel --did <did> --name authentication --vm "<did#fragment>" --notBefore 1735600000 --notAfter 1767136000` |
+| list-dids-by-verification-rel | Obtiene todos los DIDs vinculados a un VM mediante una relación  | `npx tsx src/index.ts list-dids-by-verification-rel --vm <did#fragment> --name authentication --page 1 --pageSize 10`                            |
+
+---
+
+### 4. Controllers
+
+| Comando           | Descripción                  | Ejemplo                                                                        |
+| ----------------- | ---------------------------- | ------------------------------------------------------------------------------ |
+| add-controller    | Añade un controller a un DID | `npx tsx src/index.ts add-controller --did <did> --controller <controllerDid>` |
+| remove-controller | Quita controller             | `npx tsx src/index.ts remove-controller --did <did>`                           |
+
+---
+
+### 5. Alias
+
+| Comando              | Descripción              | Ejemplo                                                                              |
+| -------------------- | ------------------------ | ------------------------------------------------------------------------------------ |
+| update-alias         | Actualiza alias local    | `npx tsx src/index.ts update-alias --did <did> --aka 'Nuevo alias'`                  |
+| update-alias-onchain | Actualiza alias on-chain | `npx tsx src/index.ts update-alias-onchain --did <did> --alsoKnownAs "public-alias"` |
+
+---
+
+### 6. Listado Local
+
+| Comando | Descripción                           | Ejemplo                     |
+| ------- | ------------------------------------- | --------------------------- |
+| list    | Lista los DIDs almacenados localmente | `npx tsx src/index.ts list` |
+
+---
+
+### 7. Almacenamiento Local
+
+- **Archivos**
+  - `.did_root`: Llave privada del Root DID
+  - `.dids.json`: DIDs creados, alias, timestamps
+- **Estructura de un DID**
+  - `did`: `did:isbe:...`
+  - `type`: `root | child`
+  - `owner`: `publicKey`
+  - `alsoKnownAs`: `string`
+  - `createdAt`: `timestamp`
+  - `updatedAt`: `timestamp`
+
+---
+
+### 8. Calidad y Pruebas
+
+- **Framework:** Jest
+- **Cobertura:**
+  - Validación de DIDs
+  - Creación de VMs
+  - Controllers
+  - Relationships
+  - Almacenamiento local
+  - Integración con contratos
+- **Buenas prácticas:**
+  - Validación estricta
+  - Manejo de errores ethers.js
+  - Tipado fuerte TypeScript
+  - Modularidad por comando
+
+---
+
+### 9. Reglas de Negocio
+
+- **VM**
+  - Los VM revocados se mantienen si tienen relaciones vigentes
+  - Relaciones dependen de `notBefore` / `notAfter`
+- **Controllers**
+  - Un Root DID controla sus hijos de manera predeterminada
+
+---
+
+### 10. Dependencias
+
+- Node.js >=18
+- ethers.js 6.x
+- did-isbe-registry-dev
+- commander.js
+- dotenv
+- tsx
+- typescript
+
+---
+
+### 11. Limitaciones
+
+- Método exclusivo `did:isbe`
+- Requiere disponibilidad del RPC
+- Requiere contrato desplegado
+- No resuelve documentos vía API REST (solo on-chain)
+
+---
+
+### 12. Control de Versiones
+
+- **Esquema:** SemVer
+- **Cambios menores:** Pull request + revisión técnica, release notes
+- **Cambios mayores:** Comité técnico ISBE, informe de impacto
+- **Hotfix:** Aprobación urgente, pruebas adjuntas
+
+---
+
+### 13. Licencia
+
+- **Tipo:** Apache 2.0
+- **Copyright:** © 2025 Comunidad de Madrid & Alastria
