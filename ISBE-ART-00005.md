@@ -6,11 +6,11 @@
 
 | Campo                     | Valor                                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------------------- |
-| **Nombre del artefacto**  | ISBE-ART-00002 — ISBE DID Registry CLI                                                      |
+| **Nombre del artefacto**  | ISBE-ART-00005 — ISBE DID Registry CLI                                                      |
 | **Origen**                | Proyecto ISBE – Capa de Identidad / Implementación CLI sobre el Smart Contract DID Registry |
-| **Estado**                | Borrador técnico                                                                            |
+| **Estado**                | Validado                                                                           |
 | **Versión del documento** | 1.0.0                                                                                       |
-| **Fecha**                 | 2025-11-26                                                                                  |
+| **Fecha**                 | 2025-12-01                                                                                  |
 | **Repositorio**           | https://github.com/alastria/isbe-identity                                                   |
 | **Commit**                | _(pendiente)_                                                                               |
 
