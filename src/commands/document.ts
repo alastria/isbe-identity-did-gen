@@ -52,160 +52,97 @@ export default class DidCommands {
     );
   }
  
-  private async sendTransaction(tx: any): Promise<TransactionReceipt> {
-    console.log(chalk.cyan("Preparando envío de transacción..."));
-    try {
-      const txResp = await this.wallet.sendTransaction(tx);
-      console.log(chalk.gray(`Tx hash: ${txResp.hash}`));
-      const receipt = await txResp.wait();
-      console.log(
-        chalk.green(`Confirmada en bloque ${receipt.blockNumber}`)
-      );
-      return receipt;
-    } catch (err: any) {
-      console.error(
-        chalk.red("Error al enviar transacción:"),
-        err.message || err
-      );
-      throw err;
-    }
-  }
- 
-  private selfSignForChild(key: elliptic.ec.KeyPair) {
-    const pubUncompressed = Buffer.from(
-      key.getPublic().encode("hex", false),
-      "hex"
-    );
-    const pubXY = pubUncompressed.slice(1);
-    const msg = keccak_256(pubXY);
-    const sig = key.sign(msg, { canonical: true });
-    const r = sig.r.toArrayLike(Buffer, "be", 32);
-    const s = sig.s.toArrayLike(Buffer, "be", 32);
-    const v = (sig.recoveryParam ?? 0) + 27;
-    const proof = ethers.concat([r, s, Uint8Array.from([v])]);
-    const signatureDER = Buffer.from(sig.toDER());
-    return { proof, signatureDER };
-  }
- 
-  private buildDIDFromSignature(signatureDER: Buffer) {
-    const last19 = signatureDER.slice(-19);
-    const versionByte = Buffer.from([0x00]);
-    const methodBytes = Buffer.concat([versionByte, last19]);
-    const methodSpecificId = methodBytes.toString("hex");
-    return `did:isbe:${this.NAMESPACE_CHILD}:${methodSpecificId}`;
-  }
- 
   private fragmentFromDid(did: string) {
     return bs58.encode(Buffer.from(keccak_256(Buffer.from(did)).slice(0, 8)));
   }
- 
+
   async buildSignSend(rawTxApi: any, overrideSigner?: Wallet) {
     try {
-      console.log(" Preparando transacción desde rawTx API...");
- 
+      console.log("Preparando transacción desde rawTx API...");
+
       const raw = rawTxApi?.tx ?? rawTxApi;
-      if (!raw) {
-        throw new Error("La API no devolvió ninguna transacción (rawTx vacío)");
+      if (!raw || typeof raw !== "string" || !raw.startsWith("0x")) {
+        throw new Error("La API no devolvió rawTx válido");
       }
+
       const signer = overrideSigner ?? this.wallet;
-      if (typeof raw === "string" && raw.startsWith("0x")) {
-        console.log(
-          " rawTx recibido como string hex. Primeros 80 chars:",
-          raw.slice(0, 80)
-        );
- 
-        let unsigned: ethers.Transaction;
-        try {
-          unsigned = ethers.Transaction.from(raw);
-        } catch (e) {
-          throw new Error(
-            "No pude parsear el rawTx string devuelto por la API con ethers.Transaction.from"
-          );
-        }
- 
-        unsigned.nonce = await this.provider.getTransactionCount(
-          await signer.getAddress(),
-          "pending"
-        );
- 
-        const signed = await signer.signTransaction(unsigned);
- 
-        console.log("Enviando transacción firmada a la API (/sendSignedTransaction)...");
-        const { data } = await api.post("/sendSignedTransaction", {
-          rawTx: signed,
-        });
- 
-        return data;
-      }
- 
-      if (typeof raw === "object") {
-        console.log(
-          " rawTx recibido como objeto unsignedTx. Preview:",
-          JSON.stringify(raw).slice(0, 200)
-        );
- 
-        const unsigned: any = { ...raw };
- 
-        if (unsigned.nonce === undefined) {
-          unsigned.nonce = await this.provider.getTransactionCount(
-            await signer.getAddress(),
-            "pending"
-          );
-        }
- 
-        const signed = await signer.signTransaction(unsigned);
- 
-        console.log("Enviando a /sendSignedTransaction ...");
-        const { data } = await api.post("/sendSignedTransaction", {
-          rawTx: signed,
-        });
- 
-        return data;
-      }
- 
-      throw new Error(
-        `Formato de rawTx desconocido (tipo=${typeof raw}). Esperaba string '0x...' u objeto unsignedTx.`
-      );
-    } catch (err) {
-      console.error("Error en buildSignSend:", err);
+      const from = await signer.getAddress();
+      const tx = ethers.Transaction.from(raw);
+
+      tx.nonce = await this.provider.getTransactionCount(from, "pending");
+      const signedTx = await signer.signTransaction(tx);
+
+      console.log(" Enviando transacción firmada a /sendSignedTransaction...");
+
+      const { data } = await api.post("/sendSignedTransaction", {
+        rawTx: signedTx,
+      });
+      console.log("Transacción enviada correctamente");
+      return data;
+
+    } catch (err: any) {
+      console.error(" Error en buildSignSend:", err?.response?.data || err?.message || err);
       throw err;
     }
   }
 
   async init(ellipticType: number) {
-    console.log(chalk.cyan("Inicializando Registry vía API..."));
-    const modelDeployId = process.env.MODEL_DEPLOY_ID;
-    const didRegistryAddress = process.env.DID_REGISTRY_ADDRESS;
-    const rpcUrl = process.env.RPC_URL;
-    if (!modelDeployId || !didRegistryAddress || !rpcUrl) {
-      console.error("ERROR: faltan variables .env", {
-        modelDeployId,
-        didRegistryAddress,
-        rpcUrl,
-      });
+    console.log(chalk.cyan("Iniciando registro DID..."));
+
+    const { MODEL_DEPLOY_ID, DID_REGISTRY_ADDRESS, RPC_URL } = process.env;
+    if (!MODEL_DEPLOY_ID || !DID_REGISTRY_ADDRESS || !RPC_URL) {
+      console.error("Error: faltan variables en .env");
       return;
     }
-    saveEllipticType(ellipticType);
-    const curveName = ellipticTypeToCurveName(ellipticType);
-    this.ec = new elliptic.ec(curveName);
-    console.log(chalk.blue(`Curva seleccionada: ${curveName}`));
-    await api.post("/updateConfig", {
-      modelDeployId,
-      didRegistryAddress,
-      rpcUrl,
-    });
-    console.log(chalk.green(" Config cargada en API"));
-    console.log(chalk.cyan(" Solicitando rawTx init..."));
-    const { data: rawInit } = await api.post("/initializeDiDRegistry", {
-      ellipticType,
-    });
-    if (!rawInit.tx) {
-      console.error("La API no devolvió tx");
-      return;
+    try {
+      const iface = new ethers.Interface([
+        "function initializeDiDRegistry(uint8 ellipticType)"
+      ]);
+
+      const calldata = iface.encodeFunctionData("initializeDiDRegistry", [ellipticType]);
+
+      const tx = await this.wallet.sendTransaction({
+        to: DID_REGISTRY_ADDRESS,
+        data: calldata,
+        gasLimit: 3_000_000n
+      });
+
+      const receipt = await tx.wait();
+
+      if (receipt.status === 1n) {
+        console.log(chalk.green("Registro inicializado correctamente."));
+        return;
+      }
+    } catch (e: any) {
     }
 
-    await this.buildSignSend(rawInit);
-    console.log(chalk.green(" Registro DID inicializado"));
+    try {
+      saveEllipticType(ellipticType);
+      this.ec = new elliptic.ec(ellipticTypeToCurveName(ellipticType));
+      await api.post("/updateConfig", {
+        modelDeployId: MODEL_DEPLOY_ID,
+        didRegistryAddress: DID_REGISTRY_ADDRESS,
+        rpcUrl: RPC_URL
+      });
+      const { data: rawInit } = await api.post("/initializeDiDRegistry", {
+        ellipticType
+      });
+
+      const rawTx = rawInit?.tx ?? rawInit;
+
+      if (!rawTx || typeof rawTx !== "string") {
+        console.error("Error: API devolvió una transacción inválida");
+        return;
+      }
+
+      await this.buildSignSend(rawTx);
+
+      console.log(chalk.green("Registro inicializado correctamente."));
+      
+    } catch (err: any) {
+      const msg = err?.message || "Error desconocido";
+      console.error(`Error inicializando registro: ${msg}`);
+    }
   }
 
   async createRoot(
@@ -213,184 +150,166 @@ export default class DidCommands {
     baseDocument: string,
     alsoKnownAs?: string
   ) {
-    console.log(chalk.cyan("\nCreando ROOT DID vía API + blockchain..."));
-    let baseDoc = baseDocument;
     try {
-      JSON.parse(baseDocument);
-    } catch {
-      baseDoc = JSON.stringify({ raw: baseDocument });
+      console.log(chalk.cyan("\nCreando ROOT DID..."));
+      let baseDoc = baseDocument;
+      try {
+        JSON.parse(baseDocument);
+      } catch {
+        baseDoc = JSON.stringify({ raw: baseDocument });
+      }
+      const key = this.ec.keyFromPrivate(privKey.replace(/^0x/, ""), "hex");
+      const pubUncompressed = Buffer.from(
+        key.getPublic().encode("hex", false),
+        "hex"
+      );
+      const msg = keccak_256(pubUncompressed.slice(1));
+      const sig = key.sign(msg, { canonical: true });
+      const r = sig.r.toArrayLike(Buffer, "be", 32);
+      const s = sig.s.toArrayLike(Buffer, "be", 32);
+      const v = (sig.recoveryParam ?? 0) + 27;
+      const proofHex =
+        "0x" + Buffer.concat([r, s, Uint8Array.from([v])]).toString("hex");
+      const signatureDER = Buffer.from(sig.toDER());
+      const last19 = signatureDER.slice(-19);
+      const methodSpecific = "00" + last19.toString("hex");
+      const did = `did:isbe:${this.NAMESPACE_ROOT}:${methodSpecific}`;
+      const fragment = bs58.encode(
+        Buffer.from(keccak_256(Buffer.from(did)).slice(0, 8))
+      );
+
+      const xBuf = Buffer.from(
+        key.getPublic().getX().toArrayLike(Buffer, "be", 32)
+      );
+      const yBuf = Buffer.from(
+        key.getPublic().getY().toArrayLike(Buffer, "be", 32)
+      );
+      const jwk = JSON.stringify({
+        kty: "EC",
+        crv: "secp256k1",
+        x: xBuf.toString("base64url"),
+        y: yBuf.toString("base64url"),
+      });
+      const now = Math.floor(Date.now() / 1000);
+      const oneYear = 365 * 86400;
+      const payload = {
+        did,
+        baseDocument: baseDoc,
+        vMethodId: fragment,
+        proof: proofHex,
+        publicKey: jwk,
+        ellipticType: this.ellipticType,
+        notBefore: now,
+        notAfter: now + oneYear,
+        alsoKnownAs: alsoKnownAs ? [alsoKnownAs] : [],
+      };
+
+      console.log(chalk.blue("\nPayload insertFirstDidDocument:"));
+      console.log(JSON.stringify(payload, null, 2));
+      const { data: raw } = await api.post("/insertFirstDidDocument", payload);
+
+      await this.buildSignSend(raw.tx);
+
+      console.log(chalk.green("\nRoot DID publicado.\n"));
+      const result = {
+        did,
+        publicKeyHex: "0x" + pubUncompressed.toString("hex"),
+        proofHex,
+      };
+
+      return result;
+
+    } catch (err: any) {
+      console.error("Error creando ROOT DID:", err?.message || err);
+      throw err;
     }
-    const key = this.ec.keyFromPrivate(privKey.replace(/^0x/, ""), "hex");
-    const pubUncompressed = Buffer.from(
-      key.getPublic().encode("hex", false),
-      "hex"
-    );
-    const msg = keccak_256(pubUncompressed.slice(1));
-    const sig = key.sign(msg, { canonical: true });
-    const r = sig.r.toArrayLike(Buffer, "be", 32);
-    const s = sig.s.toArrayLike(Buffer, "be", 32);
-    const v = (sig.recoveryParam ?? 0) + 27;
-    const proofHex =
-      "0x" + Buffer.concat([r, s, Uint8Array.from([v])]).toString("hex");
-    const signatureDER = Buffer.from(sig.toDER());
-    const last19 = signatureDER.slice(-19);
-    const methodSpecific = "00" + last19.toString("hex");
-    const did = `did:isbe:${this.NAMESPACE_ROOT}:${methodSpecific}`;
-    const fragment = bs58.encode(
-      Buffer.from(keccak_256(Buffer.from(did)).slice(0, 8))
-    );
-
-    const xBuf = Buffer.from(
-      key.getPublic().getX().toArrayLike(Buffer, "be", 32)
-    );
-
-    const yBuf = Buffer.from(
-      key.getPublic().getY().toArrayLike(Buffer, "be", 32)
-    );
-
-    const jwk = JSON.stringify({
-      kty: "EC",
-      crv: "secp256k1",
-      x: xBuf.toString("base64url"),
-      y: yBuf.toString("base64url"),
-    });
-    saveDID({
-      did,
-      baseDocument: baseDoc,
-      fragment,
-      publicKeyHex: "0x" + pubUncompressed.toString("hex"),
-      alsoKnownAs: alsoKnownAs ?? "",
-      type: "root",
-      version: 1,
-      createdAt: Date.now(),
-    });
- 
-    console.log(chalk.green(`Root DID off-chain: ${did}`));
-    const now = Math.floor(Date.now() / 1000);
-    const oneYear = 365 * 86400; 
-    const { data: raw } = await api.post("/insertFirstDidDocument", {
-      did,
-      baseDocument: baseDoc,
-      vMethodId: fragment,
-      proof: proofHex,
-      publicKey: jwk,
-      ellipticType: this.ellipticType,
-      notBefore: now,
-      notAfter: now + oneYear,
-      alsoKnownAs: alsoKnownAs ? [alsoKnownAs] : [],
-    });
- 
-    const receipt = await this.buildSignSend(raw.tx);
-    console.log(
-      chalk.green(
-        `Root DID publicado on-chain. Tx: ${
-          (receipt as any)?.hash ||
-          (receipt as any)?.transactionHash ||
-          "undefined"
-        }`
-      )
-    );
-    return did;
   }
-
 
   async createChild(
     privKeyHex: string,
     baseDocument: string,
     aka?: string
-  ): Promise<string> {
-    console.log(chalk.blueBright("Creando DID secundario (via API)…"));
-
-    const priv = privKeyHex.startsWith("0x") ? privKeyHex : "0x" + privKeyHex;
-    const key = this.ec.keyFromPrivate(priv.replace(/^0x/, ""), "hex");
-    const pub = key.getPublic();
-    const x = pub.getX().toString("hex").padStart(64, "0");
-    const y = pub.getY().toString("hex").padStart(64, "0");
-    const pubHexXY = "0x" + x + y;
-    const { signatureDER } = this.selfSignForChild(key);
-    const did = this.buildDIDFromSignature(signatureDER);
-    console.log("DID secundario generado:", chalk.yellow(did));
-    const fragment = this.fragmentFromDid(did);
-    const rootWalletAddress = await this.wallet.getAddress();
-    console.log(
-      chalk.green(
-        `ROOT controller (wallet) que se usará como emisor del child: ${rootWalletAddress}`
-      )
-    );
-    const now = Math.floor(Date.now() / 1000);
-    const oneYear = 365 * 24 * 60 * 60;
+  ) {
     try {
+      console.log(chalk.blueBright("\nCreando DID secundario...\n"));
+      const priv = privKeyHex.startsWith("0x") ? privKeyHex : "0x" + privKeyHex;
+      const key = this.ec.keyFromPrivate(priv.replace(/^0x/, ""), "hex");
+
+      const pub = key.getPublic();
+      const x = pub.getX().toString("hex").padStart(64, "0");
+      const y = pub.getY().toString("hex").padStart(64, "0");
+
+      const pubXY = "0x" + x + y;
+      const pubUncompressedHex = "0x04" + x + y;
+
+      const pubXYbuf = Buffer.concat([Buffer.from(x, "hex"), Buffer.from(y, "hex")]);
+      const msg = keccak_256(pubXYbuf);
+      const sig = key.sign(msg, { canonical: true });
+
+      const r = sig.r.toArrayLike(Buffer, "be", 32);
+      const s = sig.s.toArrayLike(Buffer, "be", 32);
+      const v = (sig.recoveryParam ?? 0) + 27;
+      const proofHex =
+        "0x" + Buffer.concat([r, s, Uint8Array.from([v])]).toString("hex");
+
+      const signatureDER = Buffer.from(sig.toDER());
+      const last19 = signatureDER.slice(-19);
+      const methodSpecific = "00" + last19.toString("hex");
+      const did = `did:isbe:${this.NAMESPACE_CHILD}:${methodSpecific}`;
+
+      console.log(chalk.yellow("DID secundario generado:"));
+      console.log(" →", did, "\n");
+
+      const fragment = this.fragmentFromDid(did);
+      const controller = await this.wallet.getAddress();
+
+      const now = Math.floor(Date.now() / 1000);
+      const oneYear = 365 * 24 * 60 * 60;
+
       const payload: any = {
         did,
         baseDocument,
         vMethodId: fragment,
-        publickKey: pubHexXY, 
+        publickKey: pubXY,
         ellipticType: this.ellipticType,
         notBefore: now,
         notAfter: now + oneYear,
       };
-      if (aka) {
-        payload.alsoKnownAs = [aka];
-      }
-      const { data } = await api.post("/insertDidDocument", payload); 
-      console.log("Respuesta API /insertDidDocument:", data);
-      let rawTx: string | undefined;
-      if (typeof data === "string") {
-        rawTx = data;
-      } else if (data?.rawTx && typeof data.rawTx === "string") {
-        rawTx = data.rawTx;
-      } else if (data?.tx && typeof data.tx === "string") {
-        rawTx = data.tx;
-      }
-      if (!rawTx || !rawTx.startsWith("0x")) {
-        console.error("Respuesta inesperada de /insertDidDocument:", data);
-        throw new Error(
-          "La API /insertDidDocument no devolvió una rawTx válida (string 0x...)"
-        );
-      }
-      console.log("Preparando transacción desde rawTx API...");
-      console.log(
-        "rawTx recibido como string hex. Primeros 80 chars:",
-        rawTx.slice(0, 80)
-      );
-      const receipt = await this.buildSignSend(rawTx);
-      console.log(
-        chalk.green(
-          `DID secundario insertado en blockchain. Tx: ${
-            (receipt as any)?.hash ||
-            (receipt as any)?.transactionHash ||
-            "(hash no disponible)"
-          }`
-        )
-      );
+
+      if (aka) payload.alsoKnownAs = [aka];
+
+      console.log(chalk.blue("Payload insertDidDocument:\n"));
+      console.log(JSON.stringify(payload, null, 2));
+
+      const { data } = await api.post("/insertDidDocument", payload);
+
+      const rawTx =
+        data?.rawTx ??
+        data?.tx ??
+        (typeof data === "string" ? data : undefined);
+
+      if (!rawTx || !rawTx.startsWith("0x"))
+        throw new Error("La API no devolvió una rawTx válida");
+
+      await this.buildSignSend(rawTx);
+
+      console.log(chalk.green("\nDID secundario insertado correctamente.\n"));
+
+      return {
+        did,
+        publicKeyHex: pubUncompressedHex,
+        proofHex,
+      };
+
     } catch (err: any) {
       console.error(
-        chalk.red("Error al insertar DID secundario vía API:"),
-        err?.response?.data || err
+        chalk.red("Error creando DID secundario:"),
+        err?.response?.data || err?.message || err
       );
       throw err;
     }
-    saveDID({
-      did,
-      baseDocument,
-      fragment,
-      publicKeyHex: pubHexXY,
-      controller: rootWalletAddress,
-      createdAt: Date.now(),
-      alsoKnownAs: aka ?? "",
-      type: "child",
-      version: 1,
-    } as any);
-    console.log(chalk.green("Almacenado en storage local (.dids.json)"));
-    const pubUncompressedHex = "0x04" + x + y;
-    console.log("\nClave pública del CHILD DID:");
-    console.log("  • Uncompressed (para add-vm, roll-vm):");
-    console.log("    ", pubUncompressedHex);
-    console.log("  • XY (para insertDidDocument):");
-    console.log("    ", pubHexXY);
-    console.log();
-    return did;
-}
+  }
+
  
   async updateBaseDocument(did: string, baseDocument: any) {
     console.log(chalk.cyan(`Actualizando baseDocument de ${did} vía API...`));

@@ -123,16 +123,18 @@ program
          const normalized = privKey.startsWith("0x")
           ? privKey
           : "0x" + privKey;
-        const did = await didCLI.createRoot(normalized, baseDocument, opts.aka);
-        console.log(
-          chalk.green(`Root DID creado correctamente: ${did}`)
-        ); 
-        fs.writeFileSync(
-          ".did_root",
-          `PRIVATE_KEY=${normalized}\nDID=${did}\n`,
-          "utf8"
-        );
-        console.log(chalk.green("Archivo .did_root creado correctamente."));
+    const result = await didCLI.createRoot(normalized, baseDocument, opts.aka);
+
+    console.log(chalk.green("\nRoot DID creado correctamente:\n"));
+    console.log(JSON.stringify(result, null, 2));
+
+    fs.writeFileSync(
+      ".did_root",
+      `PRIVATE_KEY=${normalized}\nDID=${result.did}\n`,
+      "utf8"
+    );
+
+console.log(chalk.green("Archivo .did_root creado correctamente."));
       } catch (err: any) {
         console.error(
           chalk.red("Error al crear Root DID:"),
@@ -202,34 +204,9 @@ program
     }
   });
  
-
-program
-  .command("list")
-  .description("Lista los DIDs almacenados por la CLI (off-chain)")
-  .action(async () => {
-    try {
-      const data = readDIDs();
-      if (!Array.isArray(data) || data.length === 0) {
-        console.log(chalk.yellow("No hay DIDs guardados en .dids.json"));
-        return;
-      }
-      const table = data.map((d) => ({
-        did: d.did,
-        type: d.type,
-        aka: d.alsoKnownAs ?? (d as any).aka ?? "",
-        createdAt: new Date(d.createdAt).toISOString(),
-      }));
-      console.table(table);
-    } catch (e: any) {
-      console.error(
-        chalk.red("Error leyendo storage local:"),
-        e.message || e
-      );
-    }
-  });
  
 program
-  .command("list-onchain")
+  .command("list")
   .description("Lista los DIDs almacenados en la blockchain con paginación")
   .option("--page <num>", "Página", "1")
   .option("--pageSize <num>", "Tamaño de página", "10")
@@ -237,14 +214,41 @@ program
     try {
       const page = Number(opts.page);
       const size = Number(opts.pageSize);
+
       const result = await didCLI.listOnChainDIDs(page, size);
-      console.log(chalk.blue("\nResultado on-chain:\n"));
-      console.log(JSON.stringify(result, null, 2));
+      const { items = [], total } = result ?? {};
+
+      console.log("\n" + chalk.cyan("══════════════════════════════════════════════"));
+      console.log(chalk.cyan("         DIDs encontrados on-chain"));
+      console.log(chalk.cyan("══════════════════════════════════════════════\n"));
+
+      console.log(chalk.white(`Página: ${page}     Tamaño: ${size}`));
+      console.log(chalk.white(`Total DIDs: ${total}\n`));
+
+      if (!items.length) {
+        console.log(chalk.yellow("No hay DIDs en blockchain para esta página.\n"));
+        return;
+      }
+
+      // Encabezado
+      console.log(chalk.cyan("╔══════╦════════════════════════════════════════════════════════════════════════════════════╗"));
+      console.log(chalk.cyan("║  #   ║ DID                                                                               ║"));
+      console.log(chalk.cyan("╠══════╬════════════════════════════════════════════════════════════════════════════════════╣"));
+
+      // Cada DID impreso completo sin truncar
+      items.forEach((did: string, index: number) => {
+        console.log(
+          chalk.white(
+            `║  ${String(index + 1).padEnd(3)} ║ ${did.padEnd(82)} ║`
+          )
+        );
+      });
+
+      console.log(chalk.cyan("╚══════╩════════════════════════════════════════════════════════════════════════════════════╝"));
+      console.log();
+
     } catch (err: any) {
-      console.error(
-        chalk.red("Error en list-onchain:"),
-        err.message || err
-      );
+      console.error(chalk.red("Error en list:"), err.message || err);
     }
   });
  
