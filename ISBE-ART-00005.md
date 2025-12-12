@@ -11,7 +11,7 @@
 | **Estado**                | Validado                                                                           |
 | **Versión del documento** | 1.0.0                                                                                       |
 | **Fecha**                 | 2025-12-01                                                                                  |
-| **Repositorio**           | https://github.com/alastria/isbe-identity                                                   |
+| **Repositorio**           | https://github.com/alastria/isbe-identity-did-cli/tree/main                                                   |
 | **Commit**                | _(pendiente)_                                                                               |
 
 ---
