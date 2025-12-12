@@ -14,13 +14,14 @@
 * limitations under the License.
 */
 import chalk from "chalk";
-import { JsonRpcProvider, Wallet, TransactionReceipt, ethers } from "ethers";
+import { JsonRpcProvider, Wallet, ethers } from "ethers";
 import elliptic from "elliptic";
 import { keccak_256 } from "@noble/hashes/sha3";
 import { Buffer } from "node:buffer";
 import bs58 from "bs58";
-import { saveDID, readDIDs, updateDIDAliasLocal, updateDIDBaseLocal } from "../utils/localStorage";
+import { saveDID, readDIDs } from "../utils/localStorage";
 import type { DIDEntry as DIDRecord } from "../utils/localStorage"; 
+
  
 import { api } from "../api/client";
 import {
@@ -152,46 +153,51 @@ export default class DidCommands {
   ) {
     try {
       console.log(chalk.cyan("\nCreando ROOT DID..."));
+
       let baseDoc = baseDocument;
       try {
         JSON.parse(baseDocument);
       } catch {
         baseDoc = JSON.stringify({ raw: baseDocument });
       }
+
       const key = this.ec.keyFromPrivate(privKey.replace(/^0x/, ""), "hex");
       const pubUncompressed = Buffer.from(
         key.getPublic().encode("hex", false),
         "hex"
       );
+
       const msg = keccak_256(pubUncompressed.slice(1));
       const sig = key.sign(msg, { canonical: true });
       const r = sig.r.toArrayLike(Buffer, "be", 32);
       const s = sig.s.toArrayLike(Buffer, "be", 32);
       const v = (sig.recoveryParam ?? 0) + 27;
+
       const proofHex =
         "0x" + Buffer.concat([r, s, Uint8Array.from([v])]).toString("hex");
+
       const signatureDER = Buffer.from(sig.toDER());
       const last19 = signatureDER.slice(-19);
+
       const methodSpecific = "00" + last19.toString("hex");
       const did = `did:isbe:${this.NAMESPACE_ROOT}:${methodSpecific}`;
       const fragment = bs58.encode(
         Buffer.from(keccak_256(Buffer.from(did)).slice(0, 8))
       );
 
-      const xBuf = Buffer.from(
-        key.getPublic().getX().toArrayLike(Buffer, "be", 32)
-      );
-      const yBuf = Buffer.from(
-        key.getPublic().getY().toArrayLike(Buffer, "be", 32)
-      );
+      const xBuf = Buffer.from(key.getPublic().getX().toArrayLike(Buffer, "be", 32));
+      const yBuf = Buffer.from(key.getPublic().getY().toArrayLike(Buffer, "be", 32));
+
       const jwk = JSON.stringify({
         kty: "EC",
         crv: "secp256k1",
         x: xBuf.toString("base64url"),
         y: yBuf.toString("base64url"),
       });
+
       const now = Math.floor(Date.now() / 1000);
       const oneYear = 365 * 86400;
+
       const payload = {
         did,
         baseDocument: baseDoc,
@@ -206,18 +212,27 @@ export default class DidCommands {
 
       console.log(chalk.blue("\nPayload insertFirstDidDocument:"));
       console.log(JSON.stringify(payload, null, 2));
-      const { data: raw } = await api.post("/insertFirstDidDocument", payload);
 
+      const { data: raw } = await api.post("/insertFirstDidDocument", payload);
       await this.buildSignSend(raw.tx);
 
       console.log(chalk.green("\nRoot DID publicado.\n"));
-      const result = {
+
+      const ownerAddr = await this.wallet.getAddress();
+
+      const entry = {
         did,
+        owner: ownerAddr,
         publicKeyHex: "0x" + pubUncompressed.toString("hex"),
         proofHex,
+        createdAt: Date.now()
       };
 
-      return result;
+      saveDID(entry); 
+
+      console.log(chalk.green("ROOT DID guardado en .dids.json correctamente"));
+
+      return entry;
 
     } catch (err: any) {
       console.error("Error creando ROOT DID:", err?.message || err);
@@ -294,7 +309,12 @@ export default class DidCommands {
       await this.buildSignSend(rawTx);
 
       console.log(chalk.green("\nDID secundario insertado correctamente.\n"));
-
+      saveDID({
+        did,
+        owner: await this.wallet.getAddress(),
+        createdAt: Date.now(),
+        baseDocument,
+      });
       return {
         did,
         publicKeyHex: pubUncompressedHex,
@@ -310,38 +330,45 @@ export default class DidCommands {
     }
   }
 
- 
   async updateBaseDocument(did: string, baseDocument: any) {
     console.log(chalk.cyan(`Actualizando baseDocument de ${did} vía API...`));
+
     const baseStr =
       typeof baseDocument === "string"
         ? baseDocument
         : JSON.stringify(baseDocument);
+
     try {
       const { data } = await api.post("/updateBaseDocument", {
         did,
         baseDocument: baseStr,
       });
-      console.log(chalk.green("Respuesta API /updateBaseDocument:"));
+
+      console.log(chalk.green("Respuesta API /updateBaseDocument (rawTx):"));
       console.log(JSON.stringify(data, null, 2));
+
+      const rawTx = typeof data === "string" ? data : data?.tx;
+
+      if (!rawTx || typeof rawTx !== "string" || !rawTx.startsWith("0x")) {
+        throw new Error("API /updateBaseDocument devolvió una rawTx inválida");
+      }
+
+      await this.buildSignSend(rawTx);
+
+      console.log(
+        chalk.green(
+          "update-base finalizado (ON-CHAIN: transacción firmada y enviada)."
+        )
+      );
     } catch (err: any) {
       console.error(
-        chalk.red("Error en updateBaseDocument (API):"),
+        chalk.red("Error en updateBaseDocument (ON-CHAIN):"),
         err?.response?.data || err.message || err
       );
+      throw err;
     }
-    try {
-      updateDIDBaseLocal(did, baseStr);
-    } catch (e) {
-      console.error(
-        chalk.red("Error actualizando baseDocument en storage local:"),
-        e
-      );
-    }
-    console.log(
-      chalk.green("update-base finalizado (OFF-CHAIN: storage local actualizado).")
-    );
   }
+
  
   async updateAlsoKnownAs(did: string, alsoKnownAs: string): Promise<void> {
     console.log(
@@ -350,64 +377,37 @@ export default class DidCommands {
       "\n  Nuevo alias:", alsoKnownAs,
       "\n"
     );
+
     try {
       const { data } = await api.post("/updateAlsoKnownAs", {
         did,
-        alsoKnownAs: [alsoKnownAs], 
+        alsoKnownAs, 
       });
- 
+
       console.log(chalk.green("Respuesta API /updateAlsoKnownAs:"));
       console.log(JSON.stringify(data, null, 2));
-    } catch (err: any) {
-      console.error(chalk.red("Error actualizando alsoKnownAs ON-CHAIN"));
-      console.error(err?.response?.data || err?.message || err);
-      throw err;
-    }
+      const rawTx =
+        (data && (data as any).tx) ||
+        (typeof data === "string" ? data : undefined);
 
-    try {
-      updateDIDAliasLocal(did, alsoKnownAs);
-    } catch (err) {
-      console.error(
-        chalk.red("Error actualizando alias en storage local (.dids.json):"),
-        err
-      );
+      if (!rawTx || typeof rawTx !== "string" || !rawTx.startsWith("0x")) {
+        throw new Error("API /updateAlsoKnownAs devolvió una rawTx inválida");
+      }
 
-    }
- 
-    console.log(chalk.green("update-alias finalizado (on-chain + off-chain)."));
-  }
- 
-  async getDidByTimestampOnChain(
-    did: string,
-    timestamp: number,
-    format: "hex" | "jwk" = "hex"
-  ) {
-    console.log(
-      chalk.cyan(
-        "\n Consultando DID histórico ON-CHAIN vía API:"
-      )
-    );
-    console.log("DID:", did);
-    console.log("Timestamp:", timestamp);
-    console.log("Formato:", format);
-    try {
-      const { data } = await api.get("/getDidDocumentByTimestamp", {
-        params: { did, timestamp, formato: format },
-      });
-       console.log(
-        chalk.green(" Documento histórico encontrado ON-CHAIN:\n")
+      await this.buildSignSend(rawTx);
+
+      console.log(
+        chalk.green("update-alias finalizado (ON-CHAIN: tx firmada y enviada).")
       );
-      console.log(JSON.stringify(data, null, 2));
-      return data;
     } catch (err: any) {
       console.error(
-        chalk.red(" Error en getDidByTimestampOnChain (API):"),
-        err?.response?.data || err
+        chalk.red("Error actualizando alsoKnownAs ON-CHAIN:"),
+        err?.response?.data || err?.message || err
       );
       throw err;
     }
   }
- 
+
   async listAll(): Promise<DIDRecord[]> {
     const all = readDIDs();
     console.log(chalk.blueBright("DIDs encontrados en storage local:"));
@@ -416,62 +416,26 @@ export default class DidCommands {
   }
  
   async getDidOnChain(did: string, format: "hex" | "jwk" = "hex") {
-    console.log(
-      chalk.cyan(`Consultando DID on-chain vía API: ${did}`)
-    );
-    try {
-      const { data } = await api.get("/getDidDocument", {
-        params: { did, formato: format },
-      });
-      if (!data) {
-        console.log(
-          chalk.red(" DID no encontrado en blockchain (API)")
-        );
-        return null;
-      }
-      console.log("Documento on-chain encontrado:");
-      console.log(JSON.stringify(data, null, 2));
-      return data;
-    } catch (err: any) {
-      console.error(
-        chalk.red(" Error consultando DID on-chain (API):"),
-        err?.response?.data || err
-      );
-      throw err;
-    }
+    console.log(chalk.cyan(`Consultando DID on-chain: ${did}`));
+
+    const { data } = await api.get("/getDidDocument", {
+      params: { did, formato: format },  
+    });
+
+    console.log(JSON.stringify(data, null, 2));
+    return data;
   }
  
-  async getDidByTimestamp(did: string, timestamp: number) {
-    console.log(
-      chalk.cyan(
-        `\nBuscando DID histórico LOCAL para ${did} @ ${timestamp}`
-      )
-    );
-    const tsMs = timestamp < 9999999999 ? timestamp * 1000 : timestamp;
-    const all = readDIDs();
-    const matches = all.filter((d) => d.did === did);
-    if (matches.length === 0) {
-      console.log(
-        chalk.red(`No existe el DID ${did} en el storage local.`)
-      );
-      return;
-    }
+  async getDidByTimestampOnChain(did: string, timestamp: number, format: "hex" | "jwk" = "hex") {
 
-    const validVersions = matches.filter((d) => d.createdAt <= tsMs);
-    if (validVersions.length === 0) {
-      console.log(
-        chalk.yellow(
-          "No hay versiones anteriores a ese timestamp en local."
-        )
-      );
-      return;
-    }
-    const bestMatch = validVersions.reduce((prev, curr) =>
-      curr.createdAt > prev.createdAt ? curr : prev
-    );
-    console.log(chalk.green("\nDocumento histórico LOCAL encontrado:\n"));
-    console.log(JSON.stringify(bestMatch, null, 2));
-    return bestMatch;
+    console.log(chalk.cyan(`Consultando versión histórica ON-CHAIN para ${did}`));
+
+    const { data } = await api.get("/getDidDocumentByTimestamp", {
+      params: { did, timestamp, formato: format },
+    });
+
+    console.log(JSON.stringify(data, null, 2));
+    return data;
   }
  
   async listOnChainDIDs(page: number = 1, pageSize: number = 10) {

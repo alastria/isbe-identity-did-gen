@@ -36,33 +36,13 @@ function normalizePrivKey(pk: string): string {
 }
   
 function resolveDidToAddress(did: string): string | null {
-  if (!isDid(did)) return null; 
   try {
     const found = findDID(did);
-    if (found) {
-      const anyFound = found as any;
-      if (anyFound.owner && isAddress(anyFound.owner)) {
-        return anyFound.owner; 
-      }
+    if (found && found.owner && isAddress(found.owner)) {
+      return found.owner;
     }
-  } catch { 
-  }
-  
-  try {
-    const rootFile = fs.readFileSync(".did_root", "utf8");
-    const lines = rootFile.split("\n");
-    const pkLine = lines.find((l) => l.startsWith("PRIVATE_KEY="));
-    const didLine = lines.find((l) => l.startsWith("DID="));
-    if (pkLine && didLine) {
-      const rootDid = didLine.replace("DID=", "").trim(); 
-      if (rootDid === did) {
-        const privKeyRaw = pkLine.replace("PRIVATE_KEY=", "").trim();
-        const wallet = new Wallet(normalizePrivKey(privKeyRaw));
-        return wallet.address;
-      } 
-    }
-  } catch { 
-  }
+  } catch {}
+
   return null;
 }
  
@@ -78,25 +58,32 @@ export class ControllerCommands {
     this.rpcUrl = rpcUrl; 
   }
  
-   normalizeControllerInput(input: string): { did?: string; address: string } {
+  async normalizeControllerInput(input: string): Promise<{ did?: string; address: string }> {
     if (isAddress(input)) {
-      return { address: input }; 
+      return { address: input };
     }
-  
+
     if (isDid(input)) {
-      const addr = resolveDidToAddress(input);
-      if (!addr) {
-         throw new Error(
-          "No pude resolver la address del DID " +
-            input + 
-            ". ¿Existe en .dids.json o es el DID definido en .did_root?"
-        );
+      const localAddr = resolveDidToAddress(input);
+      if (localAddr) {
+        return { did: input, address: localAddr };
       }
-      return { did: input, address: addr };
-    } 
+
+      const onchainAddr = await this.resolveAddressOnChain(input);
+      if (onchainAddr) {
+        return { did: input, address: onchainAddr };
+      }
+
+      throw new Error(
+        `No pude resolver la address del DID ${input}. 
+  Ni está en .dids.json / .did_root, ni el contrato devolvió un owner.`
+      );
+    }
+
     throw new Error("Formato inválido de controller: " + input);
   }
-    async addController(did: string, controllerDid: string): Promise<void> {
+
+  async addController(did: string, controllerDid: string): Promise<void> {
      console.log( 
       chalk.cyan("Añadiendo controller: "), 
       "\n   Controller (DID):", controllerDid, 
@@ -138,6 +125,37 @@ export class ControllerCommands {
       console.error(chalk.red("Error en addController:"));
       console.error(err?.response?.data || err?.message || err);
       throw err;
+    }
+  }
+
+  async resolveAddressOnChain(did: string): Promise<string | null> {
+    try {
+      const DID_REGISTRY_ADDRESS = process.env.DID_REGISTRY_ADDRESS!;
+      const abi = [
+        "function ownerOf(bytes32 did) view returns (address)",
+        "function didExists(bytes32 did) view returns (bool)"
+      ];
+
+      const contract = new ethers.Contract(
+        DID_REGISTRY_ADDRESS,
+        abi,
+        this.provider
+      );
+
+      const didHash = ethers.keccak256(Buffer.from(did));
+
+      const exists = await contract.didExists(didHash).catch(() => false);
+      if (!exists) return null;
+      const owner = await contract.ownerOf(didHash).catch(() => null);
+
+      if (owner && owner !== ethers.ZeroAddress) {
+        return owner;
+      }
+
+      return null;
+    } catch (err) {
+      console.error("resolveAddressOnChain error:", err);
+      return null;
     }
   }
 
@@ -197,7 +215,7 @@ export class ControllerCommands {
       targetDid,
       "\n"
     );
-    const { address } = this.normalizeControllerInput(controllerInput);
+    const { address } = await this.normalizeControllerInput(controllerInput);
     try {
       const res = await api.get("/checkController", {
         params: {

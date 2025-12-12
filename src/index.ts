@@ -229,13 +229,9 @@ program
         console.log(chalk.yellow("No hay DIDs en blockchain para esta página.\n"));
         return;
       }
-
-      // Encabezado
       console.log(chalk.cyan("╔══════╦════════════════════════════════════════════════════════════════════════════════════╗"));
       console.log(chalk.cyan("║  #   ║ DID                                                                               ║"));
       console.log(chalk.cyan("╠══════╬════════════════════════════════════════════════════════════════════════════════════╣"));
-
-      // Cada DID impreso completo sin truncar
       items.forEach((did: string, index: number) => {
         console.log(
           chalk.white(
@@ -261,7 +257,7 @@ program
       if (!onchain) return;
       const local = findDID(opts.did);
       console.log(
-        chalk.blueBright("\nInformación combinada (on-chain + off-chain):\n")
+        chalk.blueBright("\nInformación dids")
       );
       console.log(
         JSON.stringify(
