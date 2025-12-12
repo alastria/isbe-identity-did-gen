@@ -216,12 +216,7 @@ La CLI **no usa API REST**, a diferencia del Resolver TS.
 
 ## 4.4. Modelos o diagramas específicos
 
-(Sugeridos para el documento formal)
-
-- Diagrama de secuencia: creación de VM
-- Diagrama de flujo: _roll_ de VM
-- Diagrama ER del estado on-chain del DID Registry
-- Diagrama de arquitectura: CLI → librería → RPC → contrato
+No aplica.
 
 ## 4.5. Reglas de negocio asociadas
 
