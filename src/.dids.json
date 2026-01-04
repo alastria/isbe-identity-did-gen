@@ -1,0 +1,13 @@
+[
+  {
+    "did": "did:isbe:root:0016d5a07e4829af934472ff76197e815705b004",
+    "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "createdAt": 1767538402241
+  },
+  {
+    "did": "did:isbe:usecase-demo-01:003f15c877845b9e8d87835d0441185d40e6f2ba",
+    "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "baseDocument": "{\"id\":\"\",\"publicKey\":[]}",
+    "createdAt": 1767540640091
+  }
+]

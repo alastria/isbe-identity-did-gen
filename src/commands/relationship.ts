@@ -19,155 +19,202 @@ import { keccak_256 } from "@noble/hashes/sha3";
 import { Buffer } from "node:buffer";
 import bs58 from "bs58";
 import IDidVerificationMethod from "did-isbe-registry/dist/identity/did-isbe-lib/IDidVerificationMethod.js";
- 
+
+type JwkEc = {
+  kty: string;
+  crv: string;
+  x: string;
+  y: string;
+  kid?: string;
+  use?: string;
+  alg?: string;
+};
+
 export default class DidRelationship {
   private provider: JsonRpcProvider;
   private wallet: Wallet;
   private vmLib: IDidVerificationMethod;
-  
-  constructor(provider: JsonRpcProvider, wallet: Wallet, rpcUrl: string) {
+
+  constructor(provider: JsonRpcProvider, wallet: Wallet, _rpcUrl: string) {
     this.provider = provider;
     this.wallet = wallet;
+
     this.vmLib = new IDidVerificationMethod(provider);
     this.vmLib.configManager.updateConfig({
       didRegistryAddress: process.env.DID_REGISTRY_ADDRESS,
     });
     this.vmLib.contract = this.vmLib.configManager.getContract();
-     console.log(
+
+    console.log(
       "DID Registry en DidRelationship.contract:",
-      (this.vmLib.contract as any).target ?? this.vmLib.contract.address
+      (this.vmLib.contract as any).target ?? (this.vmLib.contract as any).address
     );
   }
- 
-  private async sendTxRequest(
-    txReq: ethers.TransactionRequest
-  ): Promise<TransactionReceipt> {
+
+  private async sendTxRequest(txReq: ethers.TransactionRequest): Promise<TransactionReceipt> {
     const request: ethers.TransactionRequest = {
       ...txReq,
       gasLimit: txReq.gasLimit ?? 1_500_000n,
-      gasPrice:
-        txReq.gasPrice ?? (await this.provider.getFeeData()).gasPrice ?? 0n,
+      gasPrice: txReq.gasPrice ?? (await this.provider.getFeeData()).gasPrice ?? 0n,
       nonce: txReq.nonce ?? (await this.wallet.getNonce()),
       chainId: txReq.chainId ?? (await this.provider.getNetwork()).chainId,
     };
+
     const sent = await this.wallet.sendTransaction(request);
     console.log("Tx enviada:", sent.hash);
     const receipt = await sent.wait();
     console.log("Confirmada en bloque", receipt.blockNumber);
     return receipt;
   }
- 
+
   private generateFragment(did: string): string {
     const hash = keccak_256(Buffer.from(did + Date.now().toString()));
     return bs58.encode(Buffer.from(hash.slice(0, 8)));
   }
- 
+
   private buildVMethodId(did: string, fragment: string) {
     return `${did}#${fragment}`;
   }
- 
+
+  private normalizeAndValidateJwk(input: string): string {
+    let obj: any;
+    try {
+      obj = JSON.parse(input);
+    } catch {
+      throw new Error(
+        "La publicKey debe venir como JSON string válido (JWK). Ej: --jwk '{\"kty\":\"EC\",\"crv\":\"secp256k1\",\"x\":\"...\",\"y\":\"...\"}'"
+      );
+    }
+
+    // Validación mínima JWK EC
+    const jwk = obj as Partial<JwkEc>;
+    if (!jwk || typeof jwk !== "object") {
+      throw new Error("JWK inválido: no es un objeto JSON.");
+    }
+    if (jwk.kty !== "EC") {
+      throw new Error(`JWK inválido: kty debe ser "EC" (recibido: ${String(jwk.kty)})`);
+    }
+    if (!jwk.crv || typeof jwk.crv !== "string") {
+      throw new Error("JWK inválido: falta 'crv' (string).");
+    }
+    if (!jwk.x || typeof jwk.x !== "string" || !jwk.y || typeof jwk.y !== "string") {
+      throw new Error("JWK inválido: faltan 'x' y/o 'y' (base64url strings).");
+    }
+
+    // Normalizar a string consistente (por si venía con espacios, etc.)
+    return JSON.stringify(jwk);
+  }
+
   async addVerificationMethod(
     did: string,
-    publicKeyHex: string,
+    publicKeyJwk: string,
     ellipticType: number = 1
   ) {
     console.log(chalk.blueBright(`Añadiendo verificationMethod a ${did}`));
+
     try {
       const fragment = this.generateFragment(did);
       const vMethodId = this.buildVMethodId(did, fragment);
+
+      const normalizedJwk = this.normalizeAndValidateJwk(publicKeyJwk);
+
       const txReq = (await this.vmLib.buildAddVerificationMethodTx(
         did,
         vMethodId,
-        publicKeyHex,
+        normalizedJwk, 
         ellipticType
       )) as ethers.TransactionRequest;
+
       if (!txReq.data) {
-        console.log(
-          chalk.red(
-            "buildAddVerificationMethodTx devolvió una tx"
-          )
-        );
-      } 
-      const receipt = await this.sendTxRequest(txReq); 
-      console.log(chalk.green(" Verification method añadido correctamente"));
+        console.log(chalk.red("buildAddVerificationMethodTx devolvió una tx sin data"));
+      }
+
+      const receipt = await this.sendTxRequest(txReq);
+
+      console.log(chalk.green("Verification method añadido correctamente"));
       console.log("Tx:", receipt.hash);
       console.log("Fragment generado:", fragment);
+
+      return fragment;
     } catch (err: any) {
-      console.error(
-        chalk.red("Error añadiendo verificationMethod:"),
-        err.message || err
-      );
+      console.error(chalk.red("Error añadiendo verificationMethod:"), err?.message || err);
       throw err;
     }
   }
- 
+
   async revokeVerificationMethod(
     did: string,
     fragment: string,
     notAfter: number = Math.floor(Date.now() / 1000)
   ) {
-    console.log(chalk.blue(`Revocando ${fragment} en ${did}`)); 
-    const vMethodId = this.buildVMethodId(did, fragment); 
+    console.log(chalk.blue(`Revocando ${fragment} en ${did}`));
+
+    const vMethodId = this.buildVMethodId(did, fragment);
+
     const txReq = (await this.vmLib.buildRevokeVerificationMethodTx(
       did,
       vMethodId,
       notAfter
     )) as ethers.TransactionRequest;
+
     const receipt = await this.sendTxRequest(txReq);
-    console.log(chalk.green(` Revocado on-chain. Tx: ${receipt.hash}`));
+    console.log(chalk.green(`Revocado on-chain. Tx: ${receipt.hash}`));
   }
- 
+
   async expireVerificationMethod(
     did: string,
     fragment: string,
     newNotAfter: number
   ) {
-    console.log(
-      chalk.blue(`Expirando verificationMethod ${fragment} en ${did}`)
-    );
+    console.log(chalk.blue(`Expirando verificationMethod ${fragment} en ${did}`));
+
     const vMethodId = this.buildVMethodId(did, fragment);
+
     const txReq = (await this.vmLib.buildExpireVerificationMethodTx(
       did,
       vMethodId,
       newNotAfter
     )) as ethers.TransactionRequest;
+
     const receipt = await this.sendTxRequest(txReq);
     console.log(chalk.green(`Expirado on-chain. Tx: ${receipt.hash}`));
   }
- 
+
   async rollVerificationMethod(
     did: string,
     oldFragment: string,
-    newPublicKeyHex: string,
+    newPublicKeyJwk: string,
     ellipticType = 1,
     duration = 365 * 24 * 60 * 60
   ) {
-    console.log(
-      chalk.blue(`Rotando verificationMethod ${oldFragment} en ${did}`)
-    );
+    console.log(chalk.blue(`Rotando verificationMethod ${oldFragment} en ${did}`));
+
     const now = Math.floor(Date.now() / 1000);
     const newFragment = this.generateFragment(did);
+
     const oldVMethodId = this.buildVMethodId(did, oldFragment);
     const newVMethodId = this.buildVMethodId(did, newFragment);
-     const args = {
+
+    const normalizedJwk = this.normalizeAndValidateJwk(newPublicKeyJwk);
+
+    const args = {
       did,
       vMethodId: newVMethodId,
-      publicKey: newPublicKeyHex,
+      publicKey: normalizedJwk, 
       ellipticType,
       notBefore: now,
       notAfter: now + duration,
       oldVMethodId,
       duration,
     };
- 
-    const txReq = (await this.vmLib.buildRollVerificationMethodTx(
-      args
-    )) as ethers.TransactionRequest; 
+
+    const txReq = (await this.vmLib.buildRollVerificationMethodTx(args)) as ethers.TransactionRequest;
+
     const receipt = await this.sendTxRequest(txReq);
+
     console.log(chalk.green(`Rotado on-chain. Tx: ${receipt.hash}`));
     console.log("Nuevo fragment:", newFragment);
+
     return newFragment;
   }
 }
-
- 
