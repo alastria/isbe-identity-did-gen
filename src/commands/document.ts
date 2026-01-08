@@ -65,7 +65,7 @@ export default class DidCommands {
     }
   }
 
-  private publicKeyToJwk(pub: elliptic.ec.KeyPair["pub"]): string {
+  private publicKeyToJwk(pub: any): string {
     const xBuf = Buffer.from(pub.getX().toArrayLike(Buffer, "be", 32));
     const yBuf = Buffer.from(pub.getY().toArrayLike(Buffer, "be", 32));
 
@@ -212,7 +212,9 @@ export default class DidCommands {
 
       const receipt = await tx.wait();
 
-      if (receipt.status === 1n) {
+      if (!receipt) throw new Error("Tx no minada (wait() devolvió null)");
+
+      if (receipt.status === 1) {
         console.log(chalk.green("Registro inicializado correctamente."));
         return;
       }
@@ -372,6 +374,7 @@ export default class DidCommands {
 
       saveDID({
         did,
+        type: "child",
         owner: await this.wallet.getAddress(),
         createdAt: Date.now(),
         baseDocument,

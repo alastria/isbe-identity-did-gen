@@ -34,9 +34,9 @@ import fs from "fs";
 const RPC_URL = process.env.RPC_URL!;
 const PRIVATE_KEY = process.env.ACCOUNT_PRIVATE_KEY!;
 const DID_REGISTRY_ADDRESS = process.env.DID_REGISTRY_ADDRESS!;
-const API_URL = process.env.API_URL;
+const API_BASE = process.env.API_BASE;
 
-if (!API_URL) throw new Error("Falta API_URL en .env");
+if (!API_BASE) throw new Error("Falta API URL (API_BASE) en .env");
 if (!RPC_URL || !PRIVATE_KEY || !DID_REGISTRY_ADDRESS) {
   throw new Error("Faltan variables en .env");
 }
