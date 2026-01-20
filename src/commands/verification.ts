@@ -94,7 +94,6 @@ export default class VerificationCLI {
     const nb = notBefore ?? now;
     const na = notAfter ?? now + 365 * 24 * 3600;
 
-    // ✅ API construye la tx (sin librería)
     const { data } = await api.post("/addVerificationRelationship", {
       did,
       name,
@@ -103,7 +102,6 @@ export default class VerificationCLI {
       notAfter: na,
     });
 
-    // ✅ CLI firma y envía
     const receipt = await this.buildSignSend(data);
 
     console.log(

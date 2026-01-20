@@ -65,24 +65,22 @@ export default class DidCommands {
     }
   }
 
-  private publicKeyToJwk(pub: any): string {
+  private publicKeyToJwk(pub: any): { kty: string; crv: string; x: string; y: string } {
     const xBuf = Buffer.from(pub.getX().toArrayLike(Buffer, "be", 32));
     const yBuf = Buffer.from(pub.getY().toArrayLike(Buffer, "be", 32));
 
-    const jwkObj = {
+    return {
       kty: "EC",
       crv: this.ellipticTypeToJwkCrv(this.ellipticType),
       x: xBuf.toString("base64url"),
       y: yBuf.toString("base64url"),
     };
-    return JSON.stringify(jwkObj);
   }
 
   async buildSignSend(rawTxApi: any, overrideSigner?: Wallet) {
   try {
     const signer = overrideSigner ?? this.wallet;
 
-    // La API a veces manda { tx: "0x..." } o { tx: {...} } o directamente "0x..."
     const candidate = rawTxApi?.tx ?? rawTxApi;
 
     const from = await signer.getAddress();
@@ -92,9 +90,6 @@ export default class DidCommands {
     const maxFeePerGas = feeData.maxFeePerGas ?? 1_000_000_000n;
     const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? 1_000_000_000n;
 
-    // =========================
-    // 1) Candidate es RAW TX string
-    // =========================
     if (typeof candidate === "string" && candidate.startsWith("0x")) {
       const parsed = ethers.Transaction.from(candidate);
 
@@ -110,18 +105,14 @@ export default class DidCommands {
         to,
         data: dataHex,
         value: parsed.value ?? 0n,
-
-        // ✅ usa siempre el nonce actual del signer (evita NONCE_EXPIRED)
         nonce: await this.provider.getTransactionCount(from, "pending"),
         chainId: Number(network.chainId),
 
-        // ✅ usa EIP-1559 estable
         type: 2,
         maxFeePerGas,
         maxPriorityFeePerGas,
       };
 
-      // gasLimit: estima si no viene
       txReq.gasLimit = await this.provider.estimateGas({
         from,
         to: txReq.to,
@@ -129,7 +120,6 @@ export default class DidCommands {
         value: txReq.value ?? 0n,
       });
 
-      // ✅ Bloqueo total: nunca enviar sin data
       if (!txReq.data || txReq.data === "0x") {
         throw new Error("Protección: txReq quedó sin calldata. Abortando.");
       }
@@ -138,9 +128,6 @@ export default class DidCommands {
       return await sent.wait();
     }
 
-    // =========================
-    // 2) Candidate es un txRequest object
-    // =========================
     if (candidate && typeof candidate === "object" && (candidate.to || candidate.data)) {
       const dataHex = ethers.hexlify(candidate.data ?? "0x");
 
@@ -150,7 +137,7 @@ export default class DidCommands {
 
       const txReq: ethers.TransactionRequest = {
         ...candidate,
-        from: undefined, // ethers lo calcula del signer
+        from: undefined, 
 
         data: dataHex,
 
@@ -255,12 +242,12 @@ export default class DidCommands {
       const xBuf = Buffer.from(key.getPublic().getX().toArrayLike(Buffer, "be", 32));
       const yBuf = Buffer.from(key.getPublic().getY().toArrayLike(Buffer, "be", 32));
 
-      const jwk = JSON.stringify({
+      const jwkObj = {
         kty: "EC",
         crv: "secp256k1",
         x: xBuf.toString("base64url"),
         y: yBuf.toString("base64url"),
-      });
+      };
 
       const now = Math.floor(Date.now() / 1000);
       const oneYear = 365 * 86400;
@@ -270,7 +257,7 @@ export default class DidCommands {
         baseDocument: baseDoc,
         vMethodId: fragment,
         proof: proofHex,
-        publicKey: jwk,
+        publicKey: JSON.stringify(jwkObj),
         ellipticType: this.ellipticType,
         notBefore: now,
         notAfter: now + oneYear,
@@ -289,7 +276,7 @@ export default class DidCommands {
       return {
         did,
         owner: ownerAddr,
-        publicKeyHex: "0x" + pubUncompressed.toString("hex"),
+        publicKeyJwk: jwkObj,
         proofHex,
         createdAt: Date.now(),
       };
@@ -338,25 +325,24 @@ export default class DidCommands {
       const now = Math.floor(Date.now() / 1000);
       const oneYear = 365 * 24 * 60 * 60;
 
-      const jwk = this.publicKeyToJwk(pub);
+      const jwkObj = this.publicKeyToJwk(pub);
 
       const payload: any = {
-        did,
-        baseDocument,
-        vMethodId: fragment,
-        publicKey: jwk,
-        publickKey: jwk,
-
-        ellipticType: this.ellipticType,
-        notBefore: now,
-        notAfter: now + oneYear,
+          did,
+          baseDocument,
+          vMethodId: fragment,
+          publicKey: JSON.stringify(jwkObj),
+          publickKey: JSON.stringify(jwkObj),
+          ellipticType: this.ellipticType,
+          notBefore: now,
+          notAfter: now + oneYear,
       };
 
       if (aka) payload.alsoKnownAs = [aka];
 
       console.log(chalk.blue("Payload insertDidDocument:\n"));
       console.log(JSON.stringify(payload, null, 2));
-
+      
       const { data } = await api.post("/insertDidDocument", payload);
 
       const rawTx =
@@ -382,7 +368,7 @@ export default class DidCommands {
 
       return {
         did,
-        publicKeyHex: pubUncompressedHex,
+        publicKeyJwk: jwkObj,
         proofHex,
       };
     } catch (err: any) {
@@ -476,11 +462,12 @@ export default class DidCommands {
     return all;
   }
  
-  async getDidOnChain(did: string) {
+  async getDidOnChain(did: string, accept?: string) {
     console.log(chalk.cyan(`Consultando DID on-chain: ${did}`));
 
     const { data } = await api.get("/getDidDocument", {
       params: { did },
+      headers: accept ? { Accept: accept } : undefined,
     });
 
     console.log(JSON.stringify(data, null, 2));

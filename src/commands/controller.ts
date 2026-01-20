@@ -260,30 +260,22 @@ Ni está en .dids.json / .did_root, ni el contrato devolvió un owner.`
       return null;
     }
   }
-
-  /**
-   * ✅ CLI FIRMA y ENVÍA (la API solo devuelve la tx sin firmar)
-   */
   private async buildSignSend(
     rawTxApi: any,
     overrideSigner?: Wallet
   ): Promise<TransactionReceipt> {
     try {
       const signer = overrideSigner ?? this.wallet;
-
-      // La API puede mandar { tx: "0x..." } o directamente "0x..."
       const candidate = rawTxApi?.tx ?? rawTxApi;
 
       const from = await signer.getAddress();
       const network = await this.provider.getNetwork();
       const feeData = await this.provider.getFeeData();
 
-      // ⚠️ sin BigInt literals (para ts target < ES2020)
-      const fallbackFee = BigInt(1_000_000_000); // 1 gwei
+      const fallbackFee = BigInt(1_000_000_000); 
       const maxFeePerGas = feeData.maxFeePerGas ?? fallbackFee;
       const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? fallbackFee;
 
-      // 1) RAW TX string
       if (typeof candidate === "string" && candidate.startsWith("0x")) {
         const parsed = ethers.Transaction.from(candidate);
 
@@ -316,7 +308,6 @@ Ni está en .dids.json / .did_root, ni el contrato devolvió un owner.`
         return receipt;
       }
 
-      // 2) TxRequest object
       if (candidate && typeof candidate === "object" && (candidate.to || candidate.data)) {
         const dataHex = ethers.hexlify(candidate.data ?? "0x");
         if (!dataHex || dataHex === "0x") throw new Error("TxRequest inválida: falta calldata (data).");

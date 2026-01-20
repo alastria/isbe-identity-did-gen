@@ -1,6 +1,6 @@
 # ISBE DID Registry CLI
 
-CLI oficial para gestionar identidades del método `did:isbe` directamente contra el smart contract ISBE DID Registry. Permite crear, administrar y consultar identidades, verification methods, controllers, alias y relationships de forma on-chain y off-chain.
+CCLI para gestionar identidades del método `did:isbe` usando **una API que construye transacciones sin firmar** y una CLI que **firma y envía** esas transacciones al smart contract ISBE DID Registry.
 
 ---
 
@@ -16,6 +16,18 @@ CLI oficial para gestionar identidades del método `did:isbe` directamente contr
 | Repositorio          | [GitHub](https://github.com/alastria/isbe-identity-did-cli) |
 
 ---
+## Qué puedes hacer
+
+- Inicializar el DID Registry (si aplica)
+- Crear DIDs:
+  - Root DID (`create-root`)
+  - DID secundario (`createSecondary`)
+- Consultar DIDs on-chain
+- Administrar:
+  - Verification Methods (add / revoke / expire / roll)
+  - Controllers (add / revoke / check / list)
+  - Verification Relationships (add / list)
+  - Alias (alsoKnownAs) on-chain
 
 ## 2. Propósito del Artefacto
 
@@ -23,20 +35,7 @@ CLI oficial para gestionar identidades del método `did:isbe` directamente contr
 
 Proporcionar una herramienta CLI para interacción directa con los contratos inteligentes del ISBE DID Registry, permitiendo operaciones completas de administración de identidades `did:isbe`.
 
-### Beneficios
 
-- Interoperabilidad con todo el ecosistema DID.
-- Gestión integral de identidades: creación, rotación, expiración, relaciones.
-- Uso por wallets, integradores, desarrolladores y scripts automatizados.
-- Abstracción de la complejidad de los smart contracts.
-
-### Stakeholders
-
-- Squads de desarrollo ISBE
-- Integradores de sistemas
-- Wallets y proveedores de identidad
-- Organismos reguladores
-- Desarrolladores backend y DevOps
 
 ---
 
@@ -113,6 +112,23 @@ La CLI está construida en Node.js + TypeScript, utilizando ethers.js para comun
   - `DID_REGISTRY_ADDRESS=<contrato>`
 
 ### Pasos
+
+## Configutación (.env)
+
+  # RPC EVM
+  RPC_URL=http://127.0.0.1:8545
+
+  # Address del contrato DID Registry
+  DID_REGISTRY_ADDRESS=0x...
+
+  # API base (obligatorio)
+  API_BASE=http://localhost:3000/api/v1
+
+  # Wallet “default” (se usa para init y create-root)
+  ACCOUNT_PRIVATE_KEY=0x...
+
+  # Wallet root signer (se usa para TODO excepto init y create-root)
+  ROOT_PRIVATE_KEY=0x...
 
 ```bash
 npm install

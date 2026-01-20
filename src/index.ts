@@ -24,12 +24,9 @@ import { JsonRpcProvider, Wallet } from "ethers";
 import DidCommands from "./commands/document";
 import DidRelationship from "./commands/relationship";
 import { isRegistryInitialized } from "./utils/isRegistryInitialized";
-import { loadRootWallet } from "./utils/loadRootWallet";
-import { findDID } from "./utils/localStorage";
 import { loadEllipticType } from "./utils/curveConfi";
 import { ControllerCommands } from "./commands/controller";
 import VerificationCLI from "./commands/verification";
-import fs from "fs";
 
 const RPC_URL = process.env.RPC_URL!;
 const PRIVATE_KEY = process.env.ACCOUNT_PRIVATE_KEY!;
@@ -247,9 +244,10 @@ program
 program
   .command("get-did")
   .requiredOption("--did <did>", "DID a consultar")
+  .option("--accept <mime>", "Header Accept opcional")
   .action(async (opts) => {
     try {
-      const onchain = await didCLI.getDidOnChain(opts.did); 
+      const onchain = await didCLI.getDidOnChain(opts.did, opts.accept); 
       if (!onchain) return;
 
       console.log(chalk.blueBright("\nInformación dids (on-chain)"));
@@ -266,6 +264,7 @@ program
   .requiredOption("--did <did>", "DID a consultar")
   .requiredOption("--timestamp <ts>", "Timestamp en segundos")
   .description("Consulta un DID histórico directamente en blockchain (vía API)")
+  .option("--accept <mime>", "Header Accept opcional")
   .action(async (opts) => {
     try {
       await didCLI.getDidByTimestampOnChain(opts.did, Number(opts.timestamp)); 

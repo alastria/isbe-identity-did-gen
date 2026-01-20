@@ -97,7 +97,6 @@ export default class DidRelationship {
 
     const candidate = this.pickRawTx(rawTxApi);
 
-    // 1) RAW TX string
     if (typeof candidate === "string" && candidate.startsWith("0x")) {
       const parsed = ethers.Transaction.from(candidate);
 
@@ -131,7 +130,6 @@ export default class DidRelationship {
       return receipt;
     }
 
-    // 2) TxRequest object
     if (candidate && typeof candidate === "object") {
       const txObj = candidate as ethers.TransactionRequest;
 
@@ -179,7 +177,7 @@ export default class DidRelationship {
 
     const payload = {
       did,
-      vMethodId: fragment, // la API espera fragment
+      vMethodId: fragment, 
       publicKey: normalizedJwk,
       ellipticType,
     };
