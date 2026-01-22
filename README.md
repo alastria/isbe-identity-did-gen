@@ -1,276 +1,172 @@
-# ISBE DID Registry CLI
+# ISBE DID CLI (OFFLINE)
 
-CCLI para gestionar identidades del método `did:isbe` usando **una API que construye transacciones sin firmar** y una CLI que **firma y envía** esas transacciones al smart contract ISBE DID Registry.
+CLI oficial **offline** para generar credenciales necesarias para el alta de una identidad `did:isbe` **sin conectarse a API ni a un nodo**.
+
+> El usuario mantiene siempre su **clave privada localmente**.  
+> La CLI genera DID, Clave pública y Prueba criptográfica de forma determinística y reproducible.  
+> No realiza transacciones on-chain ni requiere RPC.
 
 ---
 
 ## 1. Identificación del Artefacto
 
-| Campo                | Valor                                                       |
-| -------------------- | ----------------------------------------------------------- |
-| Nombre del artefacto | ISBE DID Registry CLI                                       |
-| Origen               | Desarrollo oficial de ISBE sobre el método did:isbe         |
-| Estado               | Validado                                                    |
-| Versión documento    | 1.0.0                                                       |
-| Fecha                | 2025-11-26                                                  |
-| Repositorio          | [GitHub](https://github.com/alastria/isbe-identity-did-cli) |
+| Campo                | Valor |
+| -------------------- | ----- |
+| Nombre del artefacto | ISBE DID CLI (OFFLINE) |
+| Origen               | Desarrollo oficial de ISBE sobre el método `did:isbe` |
+| Estado               | Activo |
+| Versión documento    | 1.0.0 |
+| Repositorio          | GitHub: https://github.com/alastria/isbe-identity-did-cli |
 
 ---
-## Qué puedes hacer
 
-- Inicializar el DID Registry (si aplica)
-- Crear DIDs:
-  - Root DID (`create-root`)
-  - DID secundario (`createSecondary`)
-- Consultar DIDs on-chain
-- Administrar:
-  - Verification Methods (add / revoke / expire / roll)
-  - Controllers (add / revoke / check / list)
-  - Verification Relationships (add / list)
-  - Alias (alsoKnownAs) on-chain
-
-## 2. Propósito del Artefacto
+## 2. Propósito
 
 ### Objetivo funcional
 
-Proporcionar una herramienta CLI para interacción directa con los contratos inteligentes del ISBE DID Registry, permitiendo operaciones completas de administración de identidades `did:isbe`.
+Permitir que un usuario genere localmente (offline) la información requerida para registrar/activar un DID en el ecosistema ISBE:
 
+- `DID`
+- `Clave pública (formato hexadecimal uncompressed)`
+- `Prueba criptográfica`
 
+### Beneficios
 
----
-
-## 3. Alcance y Ciclo de Vida
-
-### Fases
-
-| Fase                 | Estado                                   |
-| -------------------- | ---------------------------------------- |
-| Definición funcional | Completado                               |
-| Desarrollo           | Completado: comandos, librerías, pruebas |
-| Mantenimiento        | Activa y planificada                     |
-
-### Dependencias
-
-- ISBE DID Registry Smart Contract
-- ethers.js v6
-- did-isbe-registry-dev
-
-### Alcance
-
-**Incluye:**
-
-- Creación de DIDs root y secundarios
-- Administración completa de verification methods
-- Controllers
-- Relationships
-- Alias on/off chain
-- Consulta on-chain y local
-
-**Excluye:**
-
-- Resolución REST (cubierto por did-isbe-resolver)
-- UI o dashboard gráfico
+- Mayor seguridad: el usuario **no ingresa la private key en portales externos**
+- Salida compatible con flujos legacy (incluye `proofHex` con `r+s+methodSpecificId+v`)
+- Uso simple y reproducible vía `npx`
+- Incluye modo debug y modo JSON para auditoría e integración`
 
 ---
 
-## 4. Arquitectura
+## 3. Alcance
 
-### Visión General
+### Incluye
 
-La CLI está construida en Node.js + TypeScript, utilizando ethers.js para comunicarse con el contrato. Cada comando llama a métodos de alto nivel proporcionados por `did-isbe-registry-dev`.
+- Generación offline de DID `did:isbe`
+- Public Key en formato hexadecimal uncompressed
+- Prueba criptográfica en formato legacy hex
+- Namespace configurable (por defecto uc)
+- Fechas notBefore / notAfter
+- Modo simple, debug y JSON
 
-### Componentes
+### No incluye
 
-- **CLI**
-  - index.ts
-  - uso de commander.js
-- **Comandos**
-  - document.ts
-  - controller.ts
-  - verification.ts
-  - relationships.ts
-- **Utilidades**
-  - localStorage.ts
-  - didParser.ts
-  - helpers
-- **Archivos locales**
-  - .did_root
-  - .dids.json
+- Interacción con smart contracts
+- RPC / nodos / transacciones
+- Resolución de DID Documents on-chain
 
 ---
 
-## 5. Instalación
-
-### Requisitos
+## 4. Requisitos
 
 - Node.js >= 18
 - npm >= 9
-- RPC compatible EVM
-- Archivo `.env` con:
-  - `RPC_URL=http://127.0.0.1:8545`
-  - `ACCOUNT_PRIVATE_KEY=<clave>`
-  - `DID_REGISTRY_ADDRESS=<contrato>`
 
-### Pasos
+---
 
-## Configutación (.env)
+## 5. Instalación / Uso
 
-  # RPC EVM
-  RPC_URL=http://127.0.0.1:8545
-
-  # Address del contrato DID Registry
-  DID_REGISTRY_ADDRESS=0x...
-
-  # API base (obligatorio)
-  API_BASE=http://localhost:3000/api/v1
-
-  # Wallet “default” (se usa para init y create-root)
-  ACCOUNT_PRIVATE_KEY=0x...
-
-  # Wallet root signer (se usa para TODO excepto init y create-root)
-  ROOT_PRIVATE_KEY=0x...
-
-```bash
+```
 npm install
 npx tsx src/index.ts <command>
+
 ```
 
-## DID Registry CLI - Comandos
+## 6. Comando principal: generate
 
-### 1. Comandos Principales
+Genera **DID + PublicKey** + Proof en modo **offline**.
 
-#### Inicialización
+### Uso básico (recomendado)
 
-| Comando              | Descripción                                                          | Ejemplo                                                                           |
-| -------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| init                 | Inicializa el contrato si no ha sido inicializado. Crea un Root DID. | `npx tsx src/index.ts init 1`                                                     |
-| create-root          | Crea un DID Root                                                     | `npx tsx src/index.ts create-root <PRIVKEY> '{}' --aka "Mi DID Root"`             |
-| createSecondary      | Crea un DID secundario controlado por un Root DID                    | `npx tsx src/index.ts createSecondary <ROOT_PRIV_KEY> '{"id":"","publicKey":[]}'` |
-| get-did              | Consulta un DID y muestra documento on-chain y local                 | `npx tsx src/index.ts get-did --did "did:isbe:network:00abc123"`                  |
-| get-did-by-timestamp | Consulta el DID document en un instante del tiempo                   | `npx tsx src/index.ts get-did-by-timestamp --did <did> --timestamp 1735600000`    |
+Curva **1** por defecto (**secp256k1**), tipo **child** por defecto:
+```
+npx tsx src/index.ts generate --privKey 0x<PRIVATE_KEY>
+```
 
----
+### Salida (por defecto)
 
-### 2. Verification Methods (VM)
+Al ejecutar el comando `generate` sin flags adicionales, la CLI imprime:
 
-| Comando   | Descripción                            | Ejemplo                                                                              |
-| --------- | -------------------------------------- | ------------------------------------------------------------------------------------ |
-| add-vm    | Añade un Verification Method           | `npx tsx src/index.ts add-vm --did <did> --pub <pubKey> --curve 1`                   |
-| revoke-vm | Revoca un VM                           | `npx tsx src/index.ts revoke-vm --did <did> --vm <fragment>`                         |
-| expire-vm | Expira un VM                           | `npx tsx src/index.ts expire-vm --did <did> --vm <fragment> --notAfter <timestamp>`  |
-| roll-vm   | Rota un VM generando un nuevo fragment | `npx tsx src/index.ts roll-vm --did <did> --old <fragment> --pub <newPub> --curve 1` |
+- **DID**
+- **Clave pública (hex)**
+- **Prueba criptográfica**
+
+> **Nota:** la private key **no se imprime** ni se **guarda**.
 
 ---
 
-### 3. Verification Relationships
+## 7. Opciones disponibles
 
-| Comando                       | Descripción                                                      | Ejemplo                                                                                                                                          |
-| ----------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| add-verification-rel          | Asocia un VM a una relación (authentication, assertionMethod...) | `npx tsx src/index.ts add-verification-rel --did <did> --name authentication --vm "<did#fragment>" --notBefore 1735600000 --notAfter 1767136000` |
-| list-dids-by-verification-rel | Obtiene todos los DIDs vinculados a un VM mediante una relación  | `npx tsx src/index.ts list-dids-by-verification-rel --vm <did#fragment> --name authentication --page 1 --pageSize 10`                            |
-
----
-
-### 4. Controllers
-
-| Comando           | Descripción                  | Ejemplo                                                                        |
-| ----------------- | ---------------------------- | ------------------------------------------------------------------------------ |
-| add-controller    | Añade un controller a un DID | `npx tsx src/index.ts add-controller --did <did> --controller <controllerDid>` |
-| remove-controller | Quita controller             | `npx tsx src/index.ts remove-controller --did <did>`                           |
+| Opción | Descripción | Default |
+|------|-------------|---------|
+| `--privKey <hex>` | Private key (32 bytes hex) | requerido |
+| `--curve <num>` | `1=secp256k1`, `2=P-256` | `1` |
+| `--modelDeployId <id>` | Namespace para `child` | `uc` |
+| `--baseDocument <json>` | Base document JSON (string) | `{}` |
+| `--alsoKnownAs <list>` | CSV, ej: `"did:ex:1,did:ex:2"` | vacío |
+| `--durationDays <n>` | duración (días) para `notAfter` | `365` |
+| `--debug` | imprime `simple` / `json`  | `simple` |
 
 ---
 
-### 5. Alias
+## 8. Ejemplos
 
-| Comando              | Descripción              | Ejemplo                                                                              |
-| -------------------- | ------------------------ | ------------------------------------------------------------------------------------ |
-| update-alias         | Actualiza alias local    | `npx tsx src/index.ts update-alias --did <did> --aka 'Nuevo alias'`                  |
-| update-alias-onchain | Actualiza alias on-chain | `npx tsx src/index.ts update-alias-onchain --did <did> --alsoKnownAs "public-alias"` |
+### 8.1 Curva 1 (default)
 
----
+```bash
+npx tsx src/index.ts generate --privKey 0x<PRIVATE_KEY>
+```
 
-### 6. Listado Local
+### 8.1 debug (auditoría / soporte)
+```bash
+npx tsx src/index.ts generate --privKey 0x<PRIVATE_KEY> --mode debug
+```
+### Incluye además:
+- namespace
+- methodSpecificId
+- vMethodId
+- ellipticType
+- notBefore / notAfter
+- hashToSign
+- proofRsv
+- Payload sugerido para backend
+- Output completo en JSON
 
-| Comando | Descripción                           | Ejemplo                     |
-| ------- | ------------------------------------- | --------------------------- |
-| list    | Lista los DIDs almacenados localmente | `npx tsx src/index.ts list` |
+### json (automatización / integración)
+```bash
+npx tsx src/index.ts generate --privKey 0x<PRIVATE_KEY> --mode json
+```
+Imprime solo JSON, sin texto adicional.
 
----
+## 9. Formatos de salida
+### 9.1 DID
 
-### 7. Almacenamiento Local
+Formato:
 
-- **Archivos**
-  - `.did_root`: Llave privada del Root DID
-  - `.dids.json`: DIDs creados, alias, timestamps
-- **Estructura de un DID**
-  - `did`: `did:isbe:...`
-  - `type`: `root | child`
-  - `owner`: `publicKey`
-  - `alsoKnownAs`: `string`
-  - `createdAt`: `timestamp`
-  - `updatedAt`: `timestamp`
+did:isbe:<namespace>:<methodSpecificId>
 
----
+### 9.2 Clave pública (hex)
 
-### 8. Calidad y Pruebas
+Se entrega con:
+- Formato uncompressed
+- Prefijo 0x04
+- Longitud: 65 bytes
 
-- **Framework:** Jest
-- **Cobertura:**
-  - Validación de DIDs
-  - Creación de VMs
-  - Controllers
-  - Relationships
-  - Almacenamiento local
-  - Integración con contratos
-- **Buenas prácticas:**
-  - Validación estricta
-  - Manejo de errores ethers.js
-  - Tipado fuerte TypeScript
-  - Modularidad por comando
+### 9.3 Proof (legacy hex)
 
----
+**Formato legacy:**
 
-### 9. Reglas de Negocio
+- 0x + r(32) + s(32) + methodSpecificId + v(1)
 
-- **VM**
-  - Los VM revocados se mantienen si tienen relaciones vigentes
-  - Relaciones dependen de `notBefore` / `notAfter`
-- **Controllers**
-  - Un Root DID controla sus hijos de manera predeterminada
+## 10. Seguridad
 
----
+La private key:
+- No se imprime
+- No se persiste
+- Solo se usa en memoria para derivar DID y proof
 
-### 10. Dependencias
+## 11. Licencia
 
-- Node.js >=18
-- ethers.js 6.x
-- did-isbe-registry-dev
-- commander.js
-- dotenv
-- tsx
-- typescript
-
----
-
-### 11. Limitaciones
-
-- Método exclusivo `did:isbe`
-- Requiere disponibilidad del RPC
-- Requiere contrato desplegado
-- No resuelve documentos vía API REST (solo on-chain)
-
----
-
-### 12. Control de Versiones
-
-- **Esquema:** SemVer
-- **Cambios menores:** Pull request + revisión técnica, release notes
-- **Cambios mayores:** Comité técnico ISBE, informe de impacto
-- **Hotfix:** Aprobación urgente, pruebas adjuntas
-
----
-
-### 13. Licencia
-
-- **Tipo:** Apache 2.0
-- **Copyright:** © 2025 Comunidad de Madrid & Alastria
+**Apache 2.0**
+**© 2025 Comunidad de Madrid & Alastria**-

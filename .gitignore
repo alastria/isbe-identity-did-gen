@@ -1,0 +1,4 @@
+node_modules/
+dist/
+.env
+did-offchain-output.json
