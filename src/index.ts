@@ -21,8 +21,8 @@ import { generateOffchainDid } from "./commands/document";
 const program = new Command();
 
 program
-  .name("did-cli")
-  .description("ISBE DID CLI - Genera DID/PublicKey/Proof sin conectar a API ni nodo")
+  .name("did-gen")
+  .description("ISBE DID Generator - Genera DID/PublicKey/Proof sin conectar a API ni nodo")
   .version("1.0.0");
 
 program
@@ -30,10 +30,7 @@ program
   .description("Genera DID + PublicKey + Proof ")
   .requiredOption("--privKey <hex>", "Private key hex 32 bytes (con o sin 0x)")
   .option("--curve <num>", "1=secp256k1, 2=p256. Default: 1", "1")
-  .option("--modelDeployId <id>", "Namespace para child. Default: uc", "uc")
-  .option("--baseDocument <json>", 'Base document JSON string. Default: "{}"', "{}")
-  .option("--alsoKnownAs <list>", 'CSV. Ej: "did:example:1,did:example:2"', "")
-  .option("--durationDays <n>", "Duración en días. Default: 365", "365")
+  .option("--modelDeploy <id>", "Namespace para child. Default: uc", "uc")
   .option("--mode <mode>", "simple | debug | json. Default: simple", "simple")
   .action(async (opts) => {
     try {
@@ -42,36 +39,16 @@ program
         throw new Error('Curva inválida. Usa --curve "1" o --curve "2".');
       }
 
-      const durationDays = Number(String(opts.durationDays).trim());
-      if (!Number.isFinite(durationDays) || durationDays <= 0) {
-        throw new Error("--durationDays debe ser un número > 0.");
-      }
-
-      const baseDocument = String(opts.baseDocument ?? "{}").trim();
-      try {
-        JSON.parse(baseDocument);
-      } catch {
-        throw new Error("--baseDocument debe ser un JSON válido en string.");
-      }
-
-      const akaRaw = String(opts.alsoKnownAs ?? "").trim();
-      const alsoKnownAs =
-        akaRaw.length > 0
-          ? akaRaw.split(",").map((x) => x.trim()).filter(Boolean)
-          : undefined;
 
       const modeRaw = String(opts.mode ?? "simple").trim().toLowerCase();
       const mode: "simple" | "debug" | "json" =
         modeRaw === "debug" || modeRaw === "json" ? modeRaw : "simple";
-      const modelDeployId = String(opts.modelDeployId ?? "").trim() || "uc";
+      const modelDeploy = String(opts.modelDeploy ?? "").trim() || "uc";
       
       const output = generateOffchainDid({
         privKey: String(opts.privKey),
         ellipticType: curve as 1 | 2,
-        modelDeployId,
-        baseDocument,
-        alsoKnownAs,
-        durationDays,
+        modelDeploy,
       });
 
       if (mode === "json") {
@@ -98,26 +75,15 @@ program
         console.log(chalk.yellow("Debug / auditoría:\n"));
         console.log(chalk.gray(`namespace: ${output.namespace}`));
         console.log(chalk.gray(`methodSpecificId: ${output.methodSpecificId}`));
-        console.log(chalk.gray(`vMethodId: ${output.vMethodId}`));
         console.log(chalk.gray(`ellipticType: ${output.ellipticType}`));
-        console.log(chalk.gray(`notBefore: ${output.notBefore}`));
-        console.log(chalk.gray(`notAfter:  ${output.notAfter}`));
         console.log(chalk.gray(`hashToSign: ${output.hashToSign}`));
         console.log(chalk.gray(`proofRsv:  ${output.proofRsv}`));
-        console.log(chalk.gray(`baseDocument: ${output.baseDocument}`));
-        if (output.alsoKnownAs?.length) {
-          console.log(chalk.gray(`alsoKnownAs: ${JSON.stringify(output.alsoKnownAs)}`));
-        }
 
         console.log(chalk.cyan("\nPayload sugerido (insertDidDocument / insertFirstDidDocument):\n"));
         const payloadInsertDidDocument = {
           did: output.did,
-          baseDocument: output.baseDocument,
-          vMethodId: output.vMethodId,
           publicKey: JSON.stringify(output.publicKeyJwk),
           ellipticType: output.ellipticType,
-          notBefore: output.notBefore,
-          notAfter: output.notAfter,
         };
         console.log(chalk.gray(JSON.stringify(payloadInsertDidDocument, null, 2)) + "\n");
 

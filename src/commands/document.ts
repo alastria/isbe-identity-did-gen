@@ -39,11 +39,7 @@ export type OutputOffchain = {
   vMethodId: string;        
   ellipticType: OfflineCurve;
   namespace: string;
-  methodSpecificId: string;
-  notBefore: number;        
-  notAfter: number;         
-  baseDocument: string;     
-  alsoKnownAs?: string[];
+  methodSpecificId: string;            
   hashToSign: string;       
   proofRsv: string;         
 };
@@ -123,10 +119,7 @@ function buildProofRsv(key: elliptic.ec.KeyPair) {
 export type GenerateParams = {
   privKey: string;
   ellipticType?: OfflineCurve;             
-  modelDeployId?: string;          
-  baseDocument?: string;           
-  alsoKnownAs?: string[];          
-  durationDays?: number;           
+  modelDeploy?: string;                              
 };
 
 export function generateOffchainDid(params: GenerateParams): OutputOffchain {
@@ -143,7 +136,7 @@ export function generateOffchainDid(params: GenerateParams): OutputOffchain {
   const proof = buildProofRsv(key);
   const methodSpecificId = buildMethodSpecificIdFromSigDER(proof.sigDER);
 
-  const namespace = (params.modelDeployId ?? "uc").trim() || "uc";
+  const namespace = (params.modelDeploy ?? "uc").trim() || "uc";
   const did = `did:isbe:${namespace}:${methodSpecificId}`;
 
   const pub = key.getPublic();
@@ -158,11 +151,7 @@ export function generateOffchainDid(params: GenerateParams): OutputOffchain {
   }
 
   const now = Math.floor(Date.now() / 1000);
-  const durationDays = params.durationDays ?? 365;
-  const notBefore = now;
-  const notAfter = now + durationDays * 24 * 60 * 60;
 
-  const baseDocument = (params.baseDocument ?? "{}").trim();
   const vMethodId = vMethodIdFromDid(did);
 
   return {
@@ -175,10 +164,6 @@ export function generateOffchainDid(params: GenerateParams): OutputOffchain {
     ellipticType,
     namespace,
     methodSpecificId,
-    notBefore,
-    notAfter,
-    baseDocument,
-    alsoKnownAs: params.alsoKnownAs,
 
     hashToSign: proof.hashToSign,
     proofRsv: proof.proofRsv,
