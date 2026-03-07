@@ -16,80 +16,49 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { generateOffchainDid } from "./commands/document";
+import { generateProof, buildDID, getPublicKey } from "./utils";
+import { get } from "http";
 
 const program = new Command();
 
 program
   .name("did-gen")
-  .description("ISBE DID Generator - Genera DID/PublicKey/Proof sin conectar a API ni nodo")
-  .version("1.0.0");
+  .description("DID ISBE Generator - CLI tool to generate DIDs for ISBE")
+  .version("2.0.0");
 
 program
   .command("generate")
-  .description("Genera DID + PublicKey + Proof ")
-  .requiredOption("--privKey <hex>", "Private key hex 32 bytes (con o sin 0x)")
-  .option("--curve <num>", "1=secp256k1, 2=p256. Default: 1", "1")
-  .option("--modelDeploy <id>", "Namespace para child. Default: uc", "uc")
-  .option("--mode <mode>", "simple | debug | json. Default: simple", "simple")
+  .description("Generate DID + PublicKey + Proof")
+  .requiredOption("--privKey <hex>", "Private key hex 32 bytes")
+  .option(
+    "--curve <string>",
+    "secp256k1, P-256. Default: secp256k1",
+    "secp256k1",
+  )
+  .option("--modelDeploy <string>", "Model Deploy. Default: uc", "uc")
   .action(async (opts) => {
     try {
-      const curve = Number(String(opts.curve).trim());
-      if (curve !== 1 && curve !== 2) {
-        throw new Error('Curva inválida. Usa --curve "1" o --curve "2".');
+      const curve = String(opts.curve ?? "").trim() || "secp256k1";
+      if (curve !== "secp256k1" && curve !== "P-256") {
+        throw new Error(
+          'Invalid curve. Use --curve "secp256k1" or --curve "P-256".',
+        );
       }
 
-
-      const modeRaw = String(opts.mode ?? "simple").trim().toLowerCase();
-      const mode: "simple" | "debug" | "json" =
-        modeRaw === "debug" || modeRaw === "json" ? modeRaw : "simple";
       const modelDeploy = String(opts.modelDeploy ?? "").trim() || "uc";
-      
-      const output = generateOffchainDid({
-        privKey: String(opts.privKey),
-        ellipticType: curve as 1 | 2,
-        modelDeploy,
-      });
 
-      if (mode === "json") {
-        console.log(JSON.stringify(output, null, 2));
-        return;
-      }
+      const proof = generateProof(opts.privKey, curve);
+      const publicKey = getPublicKey(opts.privKey, curve);
+      const did = buildDID(proof, modelDeploy);
 
-      console.log("\n" + chalk.cyan("══════════════════════════════════════"));
-      console.log(chalk.cyan(" DID generado"));
-      console.log(chalk.cyan("══════════════════════════════════════\n"));
+      console.log(chalk.green("DID:"));
+      console.log(chalk.white(did) + "\n");
 
-      console.log(chalk.white("DID:"));
-      console.log(chalk.green(output.did) + "\n");
+      console.log(chalk.green("Public Key:"));
+      console.log(chalk.white(publicKey) + "\n");
 
-      console.log(chalk.white("Clave pública (hex):"));
-      console.log(chalk.green(output.publicKeyHex) + "\n");
-
-      console.log(chalk.white("Prueba criptográfica:"));
-      console.log(chalk.green(output.proofHex) + "\n");
-
-      console.log(JSON.stringify(output.publicKeyJwk, null, 2) + "\n");
-
-      if (mode === "debug") {
-        console.log(chalk.yellow("Debug / auditoría:\n"));
-        console.log(chalk.gray(`namespace: ${output.namespace}`));
-        console.log(chalk.gray(`methodSpecificId: ${output.methodSpecificId}`));
-        console.log(chalk.gray(`ellipticType: ${output.ellipticType}`));
-        console.log(chalk.gray(`hashToSign: ${output.hashToSign}`));
-        console.log(chalk.gray(`proofRsv:  ${output.proofRsv}`));
-
-        console.log(chalk.cyan("\nPayload sugerido (insertDidDocument / insertFirstDidDocument):\n"));
-        const payloadInsertDidDocument = {
-          did: output.did,
-          publicKey: JSON.stringify(output.publicKeyJwk),
-          ellipticType: output.ellipticType,
-        };
-        console.log(chalk.gray(JSON.stringify(payloadInsertDidDocument, null, 2)) + "\n");
-
-        console.log(chalk.cyan("Output completo:\n"));
-        console.log(chalk.gray(JSON.stringify(output, null, 2)) + "\n");
-      }
+      console.log(chalk.green("Proof:"));
+      console.log(chalk.white(proof) + "\n");
     } catch (err: any) {
       console.error(chalk.red(" Error:"), err?.message || err);
       process.exitCode = 1;

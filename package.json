@@ -4,7 +4,10 @@
   "scripts": {
     "did-gen": "ts-node src/index.ts"
   },
-  "keywords": ["did", "did:isbe"],
+  "keywords": [
+    "did",
+    "did:isbe"
+  ],
   "author": "ISBE",
   "license": "Apache-2.0",
   "description": "CLI tool to generate DIDs for ISBE",
@@ -16,7 +19,6 @@
     "elliptic": "^6.6.1"
   },
   "devDependencies": {
-    "@types/chalk": "^0.4.31",
     "@types/elliptic": "^6.4.18",
     "@types/node": "^24.5.2",
     "ts-node": "^10.9.2",

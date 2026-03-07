@@ -4,14 +4,15 @@ DID generator for `did:isbe` along with its associated cryptographic proof.
 
 ## Requirements
 
-- Node.js >= 18
-- npm >= 9
+- Node.js >= 20
+- npm >= 10
 
 ## Usage
 
 ```bash
 npm install
-npm run did-gen --  generate --privKey 0x<PRIVATE_KEY>
+chmod +x did-gen
+./did-gen generate --privKey 0x<PRIVATE_KEY>
 ```
 
 ### Available options
@@ -19,9 +20,8 @@ npm run did-gen --  generate --privKey 0x<PRIVATE_KEY>
 | Option | Description | Default |
 |------|-------------|---------|
 | `--privKey <hex>` | Private key (32-byte hex) | required |
-| `--curve <num>` | `1=secp256k1`, `2=P-256` | `1` |
-| `--modelDeploy <id>` | Deployment identifier for `did:isbe` | `uc` |
-| `--debug` | `simple` / `json`  | `simple` |
+| `--curve <string>` | Accepted curves: `secp256k1` or `P-256` | `secp256k1` |
+| `--modelDeploy <string>` | Deployment identifier for `did:isbe` | `uc` |
 
 ## License
 
