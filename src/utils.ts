@@ -18,7 +18,12 @@ import elliptic from "elliptic";
 import { keccak_256 } from "@noble/hashes/sha3";
 import { Buffer } from "node:buffer";
 import bs58 from "bs58";
-import { AcceptedCurves } from "./types";
+import {
+  AcceptedCurves,
+  EcPrivateJwk,
+  EcPublicJwk,
+  GeneratedKeys,
+} from "./types";
 import { DID_ISBE_METHOD_NAME, DID_ISBE_VERSION_BYTE } from "./constants";
 
 function normalizePrivKey(privKey: string): string {
@@ -32,9 +37,34 @@ function normalizePrivKey(privKey: string): string {
   return hex.toLowerCase();
 }
 
+function base64UrlEncode(buf: Buffer): string {
+  return buf
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function getEc(curve: AcceptedCurves): elliptic.ec {
+  return curve === "P-256" ? new elliptic.ec("p256") : new elliptic.ec("secp256k1");
+}
+
+function toJwk(key: elliptic.ec.KeyPair, curve: AcceptedCurves): EcPrivateJwk {
+  const x = key.getPublic().getX().toArrayLike(Buffer, "be", 32);
+  const y = key.getPublic().getY().toArrayLike(Buffer, "be", 32);
+  const d = key.getPrivate().toArrayLike(Buffer, "be", 32);
+
+  return {
+    kty: "EC",
+    crv: curve,
+    x: base64UrlEncode(x),
+    y: base64UrlEncode(y),
+    d: base64UrlEncode(d),
+  };
+}
+
 export function getPublicKey(privHex: string, curve: AcceptedCurves) {
-  const ec =
-    curve === "P-256" ? new elliptic.ec("p256") : new elliptic.ec("secp256k1");
+  const ec = getEc(curve);
 
   const key = ec.keyFromPrivate(privHex.replace(/^0x/, ""), "hex");
   const pubUncompressed = Buffer.from(
@@ -47,8 +77,7 @@ export function getPublicKey(privHex: string, curve: AcceptedCurves) {
 export function generateProof(privHex: string, curve: AcceptedCurves): string {
   const normalizedPrivHex = normalizePrivKey(privHex);
 
-  const ec =
-    curve === "P-256" ? new elliptic.ec("p256") : new elliptic.ec("secp256k1");
+  const ec = getEc(curve);
 
   const key = ec.keyFromPrivate(normalizedPrivHex, "hex");
   const pubUncompressed = Buffer.from(
@@ -78,4 +107,21 @@ export function buildDID(proof: string, modelDeploy: string) {
   const methodSpecificId = `z${bs58.encode(methodBytes)}`;
 
   return `did:${DID_ISBE_METHOD_NAME}:${modelDeploy}:${methodSpecificId}`;
+}
+
+export function generateKeys(curve: AcceptedCurves): GeneratedKeys {
+  const ec = getEc(curve);
+  const key = ec.genKeyPair();
+  const privateKeyHex = "0x" + key.getPrivate("hex").padStart(64, "0");
+  const publicKeyHex = "0x" + key.getPublic().encode("hex", false);
+  const privateJwk = toJwk(key, curve);
+  const { d: _d, ...publicJwkBase } = privateJwk;
+  const publicJwk: EcPublicJwk = publicJwkBase;
+
+  return {
+    privateKeyHex,
+    publicKeyHex,
+    privateJwk,
+    publicJwk,
+  };
 }

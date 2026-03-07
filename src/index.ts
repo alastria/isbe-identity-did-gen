@@ -16,9 +16,18 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { generateProof, buildDID, getPublicKey } from "./utils";
+import { buildDID, generateKeys, generateProof, getPublicKey } from "./utils";
+import { AcceptedCurves } from "./types";
 
 const program = new Command();
+
+function parseCurve(curveInput: unknown): AcceptedCurves {
+  const curve = String(curveInput ?? "").trim() || "secp256k1";
+  if (curve !== "secp256k1" && curve !== "P-256") {
+    throw new Error('Invalid curve. Use --curve "secp256k1" or --curve "P-256".');
+  }
+  return curve;
+}
 
 program
   .name("did-gen")
@@ -37,12 +46,7 @@ program
   .option("-m, --modelDeploy <string>", "Model Deploy. Default: uc", "uc")
   .action(async (opts) => {
     try {
-      const curve = String(opts.curve ?? "").trim() || "secp256k1";
-      if (curve !== "secp256k1" && curve !== "P-256") {
-        throw new Error(
-          'Invalid curve. Use --curve "secp256k1" or --curve "P-256".',
-        );
-      }
+      const curve = parseCurve(opts.curve);
 
       const modelDeploy = String(opts.modelDeploy ?? "").trim() || "uc";
 
@@ -60,6 +64,38 @@ program
 
       console.log(chalk.green("Proof:"));
       console.log(chalk.white(proof) + "\n");
+    } catch (err: any) {
+      console.error(chalk.red(" Error:"), err?.message || err);
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command("keys")
+  .description("Generate random private/public keys")
+  .option(
+    "-c, --curve <string>",
+    "secp256k1, P-256. Default: secp256k1",
+    "secp256k1",
+  )
+  .action(async (opts) => {
+    try {
+      const curve = parseCurve(opts.curve);
+      const keys = generateKeys(curve);
+
+      console.log();
+
+      console.log(chalk.green("Private Key (hex):"));
+      console.log(chalk.white(keys.privateKeyHex) + "\n");
+
+      console.log(chalk.green("Public Key (hex):"));
+      console.log(chalk.white(keys.publicKeyHex) + "\n");
+
+      console.log(chalk.green("Private Key (JWK):"));
+      console.log(chalk.white(JSON.stringify(keys.privateJwk, null, 2)) + "\n");
+
+      console.log(chalk.green("Public Key (JWK):"));
+      console.log(chalk.white(JSON.stringify(keys.publicJwk, null, 2)) + "\n");
     } catch (err: any) {
       console.error(chalk.red(" Error:"), err?.message || err);
       process.exitCode = 1;

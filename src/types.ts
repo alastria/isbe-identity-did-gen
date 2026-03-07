@@ -15,3 +15,21 @@
  */
 
 export type AcceptedCurves = "P-256" | "secp256k1";
+
+export type EcPublicJwk = {
+	kty: "EC";
+	crv: AcceptedCurves;
+	x: string;
+	y: string;
+};
+
+export type EcPrivateJwk = EcPublicJwk & {
+	d: string;
+};
+
+export type GeneratedKeys = {
+	privateKeyHex: string;
+	publicKeyHex: string;
+	privateJwk: EcPrivateJwk;
+	publicJwk: EcPublicJwk;
+};
