@@ -17,7 +17,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { generateProof, buildDID, getPublicKey } from "./utils";
-import { get } from "http";
 
 const program = new Command();
 
@@ -50,6 +49,8 @@ program
       const proof = generateProof(opts.privKey, curve);
       const publicKey = getPublicKey(opts.privKey, curve);
       const did = buildDID(proof, modelDeploy);
+
+      console.log();
 
       console.log(chalk.green("DID:"));
       console.log(chalk.white(did) + "\n");

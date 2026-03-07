@@ -75,7 +75,7 @@ export function buildDID(proof: string, modelDeploy: string) {
   const last19 = proofBuffer.slice(-19);
   const versionByte = Buffer.from([DID_ISBE_VERSION_BYTE]);
   const methodBytes = Buffer.concat([versionByte, last19]);
-  const methodSpecificId = bs58.encode(methodBytes);
+  const methodSpecificId = `z${bs58.encode(methodBytes)}`;
 
   return `did:${DID_ISBE_METHOD_NAME}:${modelDeploy}:${methodSpecificId}`;
 }
