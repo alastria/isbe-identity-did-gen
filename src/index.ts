@@ -28,13 +28,13 @@ program
 program
   .command("generate")
   .description("Generate DID + PublicKey + Proof")
-  .requiredOption("--privKey <hex>", "Private key hex 32 bytes")
+  .requiredOption("-p, --privKey <hex>", "Private key hex 32 bytes")
   .option(
-    "--curve <string>",
+    "-c, --curve <string>",
     "secp256k1, P-256. Default: secp256k1",
     "secp256k1",
   )
-  .option("--modelDeploy <string>", "Model Deploy. Default: uc", "uc")
+  .option("-m, --modelDeploy <string>", "Model Deploy. Default: uc", "uc")
   .action(async (opts) => {
     try {
       const curve = String(opts.curve ?? "").trim() || "secp256k1";

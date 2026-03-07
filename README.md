@@ -12,16 +12,19 @@ DID generator for `did:isbe` along with its associated cryptographic proof.
 ```bash
 npm install
 chmod +x did-gen
-./did-gen generate --privKey 0x<PRIVATE_KEY>
+./did-gen generate -p 0x<PRIVATE_KEY>
+
+# Example using all short options
+./did-gen generate -p 0x<PRIVATE_KEY> -c secp256k1 -m uc
 ```
 
 ### Available options
 
 | Option | Description | Default |
 |------|-------------|---------|
-| `--privKey <hex>` | Private key (32-byte hex) | required |
-| `--curve <string>` | Accepted curves: `secp256k1` or `P-256` | `secp256k1` |
-| `--modelDeploy <string>` | Deployment identifier for `did:isbe` | `uc` |
+| `-p, --privKey <hex>` | Private key (32-byte hex) | required |
+| `-c, --curve <string>` | Accepted curves: `secp256k1` or `P-256` | `secp256k1` |
+| `-m, --modelDeploy <string>` | Deployment identifier for `did:isbe` | `uc` |
 
 ## License
 
