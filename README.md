@@ -12,10 +12,10 @@ DID generator for `did:isbe` along with its associated cryptographic proof.
 ```bash
 npm install
 chmod +x did-gen
-./did-gen generate -p 0x<PRIVATE_KEY>
+./did-gen did -p 0x<PRIVATE_KEY>
 
 # Example using all short options
-./did-gen generate -p 0x<PRIVATE_KEY> -c secp256k1 -m uc
+./did-gen did -p 0x<PRIVATE_KEY> -c secp256k1 -m uc
 ```
 
 ### Available options

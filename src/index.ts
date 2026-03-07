@@ -26,7 +26,7 @@ program
   .version("2.0.0");
 
 program
-  .command("generate")
+  .command("did")
   .description("Generate DID + PublicKey + Proof")
   .requiredOption("-p, --privKey <hex>", "Private key hex 32 bytes")
   .option(
