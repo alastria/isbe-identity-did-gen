@@ -1,34 +1,31 @@
-# ISBE DID Generator
+# DID ISBE - DID Generator
 
-Generador de did:isbe junto a su prueba criptográfica asociada.
+DID generator for `did:isbe` along with its associated cryptographic proof.
 
-> Este proceso se realiza de forma `off-chain` no necesitando acceso a un nodo. 
-
-
-## Requisitos
+## Requirements
 
 - Node.js >= 18
 - npm >= 9
 
----
+## Usage
 
-## Uso
-
-```
+```bash
 npm install
 npm run did-gen --  generate --privKey 0x<PRIVATE_KEY>
 ```
 
-### Opciones disponibles
+### Available options
 
-| Opción | Descripción | Default |
+| Option | Description | Default |
 |------|-------------|---------|
-| `--privKey <hex>` | Private key (32 bytes hex) | requerido |
+| `--privKey <hex>` | Private key (32-byte hex) | required |
 | `--curve <num>` | `1=secp256k1`, `2=P-256` | `1` |
-| `--modelDeploy <id>` | Identificador de despliegue del did:isbe | `uc` |
+| `--modelDeploy <id>` | Deployment identifier for `did:isbe` | `uc` |
 | `--debug` | `simple` / `json`  | `simple` |
 
-## Licencia
+## License
 
-**Apache 2.0**
-**© 2025 Comunidad de Madrid & Alastria**-
+Apache-2.0
+
+Copyright © 2025
+Comunidad de Madrid & Alastria
