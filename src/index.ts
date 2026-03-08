@@ -16,15 +16,19 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { buildDID, generateKeys, generateProof, getPublicKey } from "./utils";
+import { getPublicKey } from "./utils";
 import { AcceptedCurves } from "./types";
+import { buildDID, generateProof } from "./commands/did";
+import { generateKeys } from "./commands/keys";
 
 const program = new Command();
 
 function parseCurve(curveInput: unknown): AcceptedCurves {
   const curve = String(curveInput ?? "").trim() || "secp256k1";
   if (curve !== "secp256k1" && curve !== "P-256") {
-    throw new Error('Invalid curve. Use --curve "secp256k1" or --curve "P-256".');
+    throw new Error(
+      'Invalid curve. Use --curve "secp256k1" or --curve "P-256".',
+    );
   }
   return curve;
 }

@@ -26,7 +26,7 @@ import {
 } from "./types";
 import { DID_ISBE_METHOD_NAME, DID_ISBE_VERSION_BYTE } from "./constants";
 
-function normalizePrivKey(privKey: string): string {
+export function normalizePrivKey(privKey: string): string {
   const pk = String(privKey ?? "").trim();
   const hex = pk.startsWith("0x") ? pk.slice(2) : pk;
   if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
@@ -37,7 +37,7 @@ function normalizePrivKey(privKey: string): string {
   return hex.toLowerCase();
 }
 
-function base64UrlEncode(buf: Buffer): string {
+export function base64UrlEncode(buf: Buffer): string {
   return buf
     .toString("base64")
     .replace(/\+/g, "-")
@@ -45,11 +45,16 @@ function base64UrlEncode(buf: Buffer): string {
     .replace(/=+$/g, "");
 }
 
-function getEc(curve: AcceptedCurves): elliptic.ec {
-  return curve === "P-256" ? new elliptic.ec("p256") : new elliptic.ec("secp256k1");
+export function getEc(curve: AcceptedCurves): elliptic.ec {
+  return curve === "P-256"
+    ? new elliptic.ec("p256")
+    : new elliptic.ec("secp256k1");
 }
 
-function toJwk(key: elliptic.ec.KeyPair, curve: AcceptedCurves): EcPrivateJwk {
+export function toJwk(
+  key: elliptic.ec.KeyPair,
+  curve: AcceptedCurves,
+): EcPrivateJwk {
   const x = key.getPublic().getX().toArrayLike(Buffer, "be", 32);
   const y = key.getPublic().getY().toArrayLike(Buffer, "be", 32);
   const d = key.getPrivate().toArrayLike(Buffer, "be", 32);
@@ -72,56 +77,4 @@ export function getPublicKey(privHex: string, curve: AcceptedCurves) {
     "hex",
   );
   return "0x" + pubUncompressed.toString("hex");
-}
-
-export function generateProof(privHex: string, curve: AcceptedCurves): string {
-  const normalizedPrivHex = normalizePrivKey(privHex);
-
-  const ec = getEc(curve);
-
-  const key = ec.keyFromPrivate(normalizedPrivHex, "hex");
-  const pubUncompressed = Buffer.from(
-    key.getPublic().encode("hex", false),
-    "hex",
-  );
-
-  // Remove the first byte (0x04) that indicates uncompressed format
-  const pubXY = pubUncompressed.slice(1);
-
-  const msg = keccak_256(pubXY);
-  const sig = key.sign(msg, { canonical: true });
-  const r = sig.r.toArrayLike(Buffer, "be", 32);
-  const s = sig.s.toArrayLike(Buffer, "be", 32);
-  const v = (sig.recoveryParam ?? 0) + 27;
-  const proof = Buffer.concat([r, s, Buffer.from([v])]);
-
-  return "0x" + proof.toString("hex");
-}
-
-export function buildDID(proof: string, modelDeploy: string) {
-  const proofBuffer = Buffer.from(proof.replace(/^0x/, ""), "hex");
-
-  const last19 = proofBuffer.slice(-19);
-  const versionByte = Buffer.from([DID_ISBE_VERSION_BYTE]);
-  const methodBytes = Buffer.concat([versionByte, last19]);
-  const methodSpecificId = `z${bs58.encode(methodBytes)}`;
-
-  return `did:${DID_ISBE_METHOD_NAME}:${modelDeploy}:${methodSpecificId}`;
-}
-
-export function generateKeys(curve: AcceptedCurves): GeneratedKeys {
-  const ec = getEc(curve);
-  const key = ec.genKeyPair();
-  const privateKeyHex = "0x" + key.getPrivate("hex").padStart(64, "0");
-  const publicKeyHex = "0x" + key.getPublic().encode("hex", false);
-  const privateJwk = toJwk(key, curve);
-  const { d: _d, ...publicJwkBase } = privateJwk;
-  const publicJwk: EcPublicJwk = publicJwkBase;
-
-  return {
-    privateKeyHex,
-    publicKeyHex,
-    privateJwk,
-    publicJwk,
-  };
 }
