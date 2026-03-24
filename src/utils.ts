@@ -19,6 +19,7 @@ import { keccak_256 } from "@noble/hashes/sha3";
 import { Buffer } from "node:buffer";
 import bs58 from "bs58";
 import {
+  AcceptedAlgorithms,
   AcceptedCurves,
   EcPrivateJwk,
   EcPublicJwk,
@@ -55,6 +56,7 @@ export function toJwk(
   key: elliptic.ec.KeyPair,
   curve: AcceptedCurves,
 ): EcPrivateJwk {
+  const alg: AcceptedAlgorithms = curve === "P-256" ? "ES256" : "ES256K";
   const x = key.getPublic().getX().toArrayLike(Buffer, "be", 32);
   const y = key.getPublic().getY().toArrayLike(Buffer, "be", 32);
   const d = key.getPrivate().toArrayLike(Buffer, "be", 32);
@@ -62,6 +64,7 @@ export function toJwk(
   return {
     kty: "EC",
     crv: curve,
+    alg,
     x: base64UrlEncode(x),
     y: base64UrlEncode(y),
     d: base64UrlEncode(d),

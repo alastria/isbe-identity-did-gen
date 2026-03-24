@@ -16,9 +16,12 @@
 
 export type AcceptedCurves = "P-256" | "secp256k1";
 
+export type AcceptedAlgorithms = "ES256" | "ES256K";
+
 export type EcPublicJwk = {
 	kty: "EC";
 	crv: AcceptedCurves;
+	alg: AcceptedAlgorithms;
 	x: string;
 	y: string;
 };
