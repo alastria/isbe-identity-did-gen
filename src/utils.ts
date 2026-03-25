@@ -15,17 +15,15 @@
  */
 
 import elliptic from "elliptic";
-import { keccak_256 } from "@noble/hashes/sha3";
 import { Buffer } from "node:buffer";
-import bs58 from "bs58";
+import * as jose from "jose";
+import { keccak_256 } from "@noble/hashes/sha3";
 import {
   AcceptedAlgorithms,
   AcceptedCurves,
   EcPrivateJwk,
   EcPublicJwk,
-  GeneratedKeys,
 } from "./types";
-import { DID_ISBE_METHOD_NAME, DID_ISBE_VERSION_BYTE } from "./constants";
 
 export function normalizePrivKey(privKey: string): string {
   const pk = String(privKey ?? "").trim();
@@ -80,4 +78,30 @@ export function getPublicKey(privHex: string, curve: AcceptedCurves) {
     "hex",
   );
   return "0x" + pubUncompressed.toString("hex");
+}
+
+export async function calculateJwkThumbprint(jwk: EcPublicJwk): Promise<string> {
+  return await jose.calculateJwkThumbprint(jwk);
+}
+
+export async function publicKeyToEOA(hexPubKey: string): Promise<string> {
+  // Remover el prefijo 0x si existe
+  let pubKey = hexPubKey.startsWith("0x") ? hexPubKey.slice(2) : hexPubKey;
+
+  // Remover el prefijo 04 que indica formato no comprimido, si existe
+  if (pubKey.startsWith("04")) {
+    pubKey = pubKey.slice(2);
+  }
+
+  // Convertir la clave pública a Buffer
+  const pubKeyBuffer = Buffer.from(pubKey, "hex");
+
+  // Calcular hash Keccak-256
+  const hash = keccak_256(pubKeyBuffer);
+
+  // Tomar los últimos 20 bytes del hash para obtener la dirección
+  const addressBytes = hash.slice(-20);
+
+  // Retornar la dirección con prefijo 0x
+  return "0x" + Buffer.from(addressBytes).toString("hex");
 }

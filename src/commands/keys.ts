@@ -15,9 +15,9 @@
  */
 
 import { AcceptedCurves, EcPublicJwk, GeneratedKeys } from "../types";
-import { getEc, toJwk } from "../utils";
+import { getEc, calculateJwkThumbprint, toJwk, publicKeyToEOA } from "../utils";
 
-export function generateKeys(curve: AcceptedCurves): GeneratedKeys {
+export async function generateKeys(curve: AcceptedCurves): Promise<GeneratedKeys> {
   const ec = getEc(curve);
   const key = ec.genKeyPair();
   const privateKeyHex = "0x" + key.getPrivate("hex").padStart(64, "0");
@@ -25,11 +25,15 @@ export function generateKeys(curve: AcceptedCurves): GeneratedKeys {
   const privateJwk = toJwk(key, curve);
   const { d: _d, ...publicJwkBase } = privateJwk;
   const publicJwk: EcPublicJwk = publicJwkBase;
+  const thumbprint = await calculateJwkThumbprint(publicJwk);
+  const eoa = await publicKeyToEOA(publicKeyHex);
 
   return {
     privateKeyHex,
     publicKeyHex,
     privateJwk,
     publicJwk,
+    thumbprint,
+    eoa,
   };
 }

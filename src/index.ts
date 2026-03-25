@@ -85,7 +85,7 @@ program
   .action(async (opts) => {
     try {
       const curve = parseCurve(opts.curve);
-      const keys = generateKeys(curve);
+      const keys = await generateKeys(curve);
 
       console.log();
 
@@ -100,6 +100,12 @@ program
 
       console.log(chalk.green("Public Key (JWK):"));
       console.log(chalk.white(JSON.stringify(keys.publicJwk, null, 2)) + "\n");
+
+      console.log(chalk.green("Public Key (JWK) Thumbprint:"));
+      console.log(chalk.white(keys.thumbprint) + "\n");
+
+      console.log(chalk.green("EOA (Ethereum Address):"));
+      console.log(chalk.white(keys.eoa) + "\n");
     } catch (err: any) {
       console.error(chalk.red(" Error:"), err?.message || err);
       process.exitCode = 1;

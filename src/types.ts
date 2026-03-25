@@ -35,4 +35,6 @@ export type GeneratedKeys = {
 	publicKeyHex: string;
 	privateJwk: EcPrivateJwk;
 	publicJwk: EcPublicJwk;
+	thumbprint: string;
+	eoa: string;
 };
