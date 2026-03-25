@@ -1,13 +1,16 @@
 {
   "name": "isbe-did-gen",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "scripts": {
     "did-gen": "ts-node src/index.ts"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "did",
+    "did:isbe"
+  ],
+  "author": "ISBE",
   "license": "Apache-2.0",
-  "description": "",
+  "description": "CLI tool to generate DIDs for ISBE",
   "dependencies": {
     "@noble/hashes": "^1.8.0",
     "bs58": "^6.0.0",
@@ -16,7 +19,6 @@
     "elliptic": "^6.6.1"
   },
   "devDependencies": {
-    "@types/chalk": "^0.4.31",
     "@types/elliptic": "^6.4.18",
     "@types/node": "^24.5.2",
     "ts-node": "^10.9.2",

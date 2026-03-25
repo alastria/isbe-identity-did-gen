@@ -1,34 +1,48 @@
-# ISBE DID Generator
+# DID ISBE - DID Generator
 
-Generador de did:isbe junto a su prueba criptográfica asociada.
+DID generator for `did:isbe` along with its associated cryptographic proof.
 
-> Este proceso se realiza de forma `off-chain` no necesitando acceso a un nodo. 
+## Requirements
 
+- Node.js >= 20
+- npm >= 10
 
-## Requisitos
+## Usage
 
-- Node.js >= 18
-- npm >= 9
-
----
-
-## Uso
-
-```
+```bash
 npm install
-npm run did-gen --  generate --privKey 0x<PRIVATE_KEY>
+chmod +x did-gen
+
+# Generate random key pair if needed
+./did-gen keys
+
+# Generate DID
+./did-gen did -p 0x<PRIVATE_KEY>
 ```
 
-### Opciones disponibles
+## Commands
 
-| Opción | Descripción | Default |
+### `did`
+
+Generate a DID and proof.
+
+| Option | Description | Default |
 |------|-------------|---------|
-| `--privKey <hex>` | Private key (32 bytes hex) | requerido |
-| `--curve <num>` | `1=secp256k1`, `2=P-256` | `1` |
-| `--modelDeploy <id>` | Identificador de despliegue del did:isbe | `uc` |
-| `--debug` | `simple` / `json`  | `simple` |
+| `-p, --privKey <hex>` | Private key (32-byte hex) | required |
+| `-c, --curve <string>` | Accepted curves: `secp256k1` or `P-256` | `secp256k1` |
+| `-m, --modelDeploy <string>` | Deployment identifier for `did:isbe` | `uc` |
 
-## Licencia
+### `keys`
 
-**Apache 2.0**
-**© 2025 Comunidad de Madrid & Alastria**-
+Generates a random EC key pair:
+
+| Option | Description | Default |
+|------|-------------|---------|
+| `-c, --curve <string>` | Accepted curves: `secp256k1` or `P-256` | `secp256k1` |
+
+## License
+
+Apache-2.0
+
+Copyright © 2025
+Comunidad de Madrid & Alastria
