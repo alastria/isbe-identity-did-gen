@@ -16,7 +16,7 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { getPublicKey } from "./utils";
+import { getPublicKey, stringToHex } from "./utils";
 import { AcceptedCurves } from "./types";
 import { buildDID, generateProof } from "./commands/did";
 import { generateKeys } from "./commands/keys";
@@ -103,6 +103,10 @@ program
 
       console.log(chalk.green("Public Key (JWK) Thumbprint:"));
       console.log(chalk.white(keys.thumbprint) + "\n");
+
+      const pkHex = stringToHex(JSON.stringify(keys.publicJwk));
+      console.log(chalk.green("Public Key (hex of JWK):"));
+      console.log(chalk.white(pkHex) + "\n");
 
       console.log(chalk.green("EOA (Ethereum Address):"));
       console.log(chalk.white(keys.eoa) + "\n");

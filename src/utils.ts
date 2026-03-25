@@ -105,3 +105,7 @@ export async function publicKeyToEOA(hexPubKey: string): Promise<string> {
   // Retornar la dirección con prefijo 0x
   return "0x" + Buffer.from(addressBytes).toString("hex");
 }
+
+export function stringToHex(str: string) {
+  return "0x" + Buffer.from(str, "utf8").toString("hex");
+}
