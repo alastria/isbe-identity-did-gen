@@ -7,7 +7,7 @@ DID generator for `did:isbe` along with its associated cryptographic proof.
 - Node.js >= 20
 - npm >= 10
 
-## Usage
+## Usage (Mac/Linux)
 
 ```bash
 npm install
@@ -18,6 +18,19 @@ chmod +x did-gen
 
 # Generate DID
 ./did-gen did -p 0x<PRIVATE_KEY>
+```
+
+
+## Usage (Windows)
+
+```bash
+npm install
+
+# Generate random key pair if needed
+npx did-gen keys
+
+# Generate DID
+npx did-gen did -p 0x<PRIVATE_KEY>
 ```
 
 ## Commands
