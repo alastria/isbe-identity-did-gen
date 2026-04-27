@@ -27,10 +27,10 @@ chmod +x did-gen
 npm install
 
 # Generate random key pair if needed
-npx did-gen keys
+node did-gen keys
 
 # Generate DID
-npx did-gen did -p 0x<PRIVATE_KEY>
+node did-gen did -p 0x<PRIVATE_KEY>
 ```
 
 ## Commands
