@@ -16,8 +16,11 @@ chmod +x did-gen
 # Generate random key pair if needed
 ./did-gen keys
 
-# Generate DID
+# Generate DID in PRO environment 
 ./did-gen did -p 0x<PRIVATE_KEY>
+
+# Generate DID in PRE environment 
+./did-gen did -m pre -p 0x<PRIVATE_KEY>
 ```
 
 ## Commands
