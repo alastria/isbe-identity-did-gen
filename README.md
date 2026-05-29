@@ -20,7 +20,7 @@ chmod +x did-gen
 ./did-gen did -p 0x<PRIVATE_KEY>
 
 # Generate DID in PRE environment 
-./did-gen did -m pre -p 0x<PRIVATE_KEY>
+./did-gen did -m uc-pre -p 0x<PRIVATE_KEY>
 ```
 
 ## Commands
