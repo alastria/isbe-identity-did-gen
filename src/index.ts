@@ -16,7 +16,7 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
-import { getPublicKey, publicKeyToEOA, stringToHex } from "./utils";
+import { getPublicKey, stringToHex } from "./utils";
 import { AcceptedCurves } from "./types";
 import { buildDID, generateProof } from "./commands/did";
 import { generateKeys } from "./commands/keys";
@@ -68,19 +68,6 @@ program
 
       console.log(chalk.green("Proof:"));
       console.log(chalk.white(proof) + "\n");
-
-      // La EOA es derivable en las dos redes EVM de ISBE — ambas Besu estándar,
-      // la única diferencia es `network.ecCurve` en el genesis.json:
-      //  - Case/UC Network (secp256k1): dirección Ethereum estándar.
-      //  - Bare Network    (secp256r1 / P-256): dirección de la red Besu con P-256.
-      // En ambos casos la fórmula es keccak256(x || y).slice(-20) con EIP-55.
-      const eoa = await publicKeyToEOA(publicKey);
-      const eoaLabel =
-        curve === "secp256k1"
-          ? "EOA (Ethereum Address)"
-          : "EOA (Bare Network Address)";
-      console.log(chalk.green(eoaLabel + ":"));
-      console.log(chalk.white(eoa) + "\n");
     } catch (err: any) {
       console.error(chalk.red(" Error:"), err?.message || err);
       process.exitCode = 1;
@@ -121,7 +108,11 @@ program
       console.log(chalk.green("Public Key (hex of JWK):"));
       console.log(chalk.white(pkHex) + "\n");
 
-      console.log(chalk.green("EOA (Ethereum Address):"));
+      const eoaLabel =
+        curve === "secp256k1"
+          ? "EOA (Ethereum Address)"
+          : "EOA (Bare Network Address)";
+      console.log(chalk.green(eoaLabel + ":"));
       console.log(chalk.white(keys.eoa) + "\n");
     } catch (err: any) {
       console.error(chalk.red(" Error:"), err?.message || err);
