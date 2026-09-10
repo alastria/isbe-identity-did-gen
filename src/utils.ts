@@ -25,6 +25,33 @@ import {
   EcPublicJwk,
 } from "./types";
 
+/**
+ * Aplica el checksum EIP-55 a una dirección Ethereum.
+ * Mantiene los dígitos numéricos y convierte cada letra a mayúscula
+ * si el nibble correspondiente de keccak256(addrLowercase) es >= 8.
+ *
+ * Spec: https://eips.ethereum.org/EIPS/eip-55
+ */
+function toChecksumAddress(addrHexLower: string): string {
+  const addr = addrHexLower.replace(/^0x/, "").toLowerCase();
+  if (!/^[0-9a-f]{40}$/.test(addr)) {
+    throw new Error(`Invalid Ethereum address: ${addrHexLower}`);
+  }
+  const hashHex = Buffer.from(keccak_256(Buffer.from(addr, "ascii"))).toString(
+    "hex",
+  );
+  let out = "0x";
+  for (let i = 0; i < addr.length; i++) {
+    const c = addr[i];
+    out += /[0-9]/.test(c)
+      ? c
+      : parseInt(hashHex[i], 16) >= 8
+        ? c.toUpperCase()
+        : c;
+  }
+  return out;
+}
+
 export function normalizePrivKey(privKey: string): string {
   const pk = String(privKey ?? "").trim();
   const hex = pk.startsWith("0x") ? pk.slice(2) : pk;
@@ -84,26 +111,96 @@ export async function calculateJwkThumbprint(jwk: EcPublicJwk): Promise<string> 
   return await jose.calculateJwkThumbprint(jwk);
 }
 
+/**
+ * Deriva la dirección de cuenta (EOA) a partir de una clave pública EC
+ * en formato hex no comprimido (64 bytes XY, opcionalmente con prefijo 0x04).
+ *
+ * Devuelve la dirección con checksum EIP-55.
+ *
+ * Funciona para las dos redes EVM de ISBE — ambas son Besu estándar, con
+ * la única diferencia del parámetro `network.ecCurve` en el `genesis.json`:
+ *  - Case Network (secp256k1): EOA Ethereum estándar.
+ *  - Bare Network  (secp256r1 / P-256): EOA en la red Besu de ISBE con esa curva.
+ *
+ * La derivación criptográfica (`keccak256(x || y).slice(-20)`) es idéntica
+ * en ambos casos: la curva sólo cambia cómo se generan x/y y cómo se
+ * validan las firmas, no la fórmula de la dirección.
+ */
 export async function publicKeyToEOA(hexPubKey: string): Promise<string> {
   // Remover el prefijo 0x si existe
   let pubKey = hexPubKey.startsWith("0x") ? hexPubKey.slice(2) : hexPubKey;
 
   // Remover el prefijo 04 que indica formato no comprimido, si existe
-  if (pubKey.startsWith("04")) {
+  if (pubKey.startsWith("04") && pubKey.length === 130) {
     pubKey = pubKey.slice(2);
+  }
+
+  if (pubKey.length !== 128 || !/^[0-9a-fA-F]+$/.test(pubKey)) {
+    throw new Error(
+      `Invalid public key hex: expected 64 bytes XY (128 hex chars), got ${pubKey.length}`,
+    );
   }
 
   // Convertir la clave pública a Buffer
   const pubKeyBuffer = Buffer.from(pubKey, "hex");
 
-  // Calcular hash Keccak-256
+  // Calcular hash Keccak-256 y tomar los últimos 20 bytes
   const hash = keccak_256(pubKeyBuffer);
-
-  // Tomar los últimos 20 bytes del hash para obtener la dirección
   const addressBytes = hash.slice(-20);
 
-  // Retornar la dirección con prefijo 0x
-  return "0x" + Buffer.from(addressBytes).toString("hex");
+  // Retornar la dirección con checksum EIP-55
+  return toChecksumAddress("0x" + Buffer.from(addressBytes).toString("hex"));
+}
+
+/**
+ * Deriva la dirección de cuenta (EOA) a partir de una `publicKeyJwk` EC
+ * (formato JWK estándar, RFC 7517 / RFC 8812).
+ *
+ * Útil cuando un cliente sólo dispone del JWK publicado en el DID Document
+ * y quiere conocer la EOA asociada — por ejemplo, para consultar saldo en
+ * un explorador, o para vincular la identidad on-chain con la off-chain.
+ *
+ * Soporta las dos curvas usadas por las redes EVM de ISBE:
+ *  - `secp256k1` → Case Network (Besu por defecto, EOA Ethereum estándar).
+ *  - `P-256`     → Bare Network (Besu estándar configurado en el genesis
+ *                  con `"network": { "ecCurve": "secp256r1" }`).
+ *
+ * Nota: `P-256` (JWK / RFC 8812), `secp256r1` (genesis Besu) y `prime256v1`
+ * (OpenSSL) son tres nombres para la misma curva.
+ *
+ * La derivación es la misma en ambos casos: `keccak256(x || y).slice(-20)`.
+ *
+ * @param jwk Objeto con `kty: "EC"`, `crv: "secp256k1" | "P-256"`,
+ *            y coordenadas `x` / `y` en base64url.
+ * @returns Dirección EVM (0x + 40 hex) con checksum EIP-55.
+ */
+export async function jwkToEoa(jwk: any): Promise<string> {
+  if (!jwk || typeof jwk !== "object") {
+    throw new Error("Invalid JWK format");
+  }
+
+  const { kty, crv, x, y } = jwk;
+  if (kty && kty !== "EC") {
+    throw new Error(`Invalid JWK kty '${kty}', expected 'EC'`);
+  }
+  if (crv && crv !== "secp256k1" && crv !== "P-256") {
+    throw new Error(
+      `Unsupported curve '${crv}', expected 'secp256k1' or 'P-256'`,
+    );
+  }
+  if (!x || !y) {
+    throw new Error("Missing X/Y coordinates in JWK");
+  }
+
+  // base64url -> Buffer (Node soporta 'base64url' nativamente desde v16)
+  const xBuf = Buffer.from(x, "base64url");
+  const yBuf = Buffer.from(y, "base64url");
+  if (xBuf.length !== 32 || yBuf.length !== 32) {
+    throw new Error("X/Y coordinates must be 32 bytes");
+  }
+
+  const pubXY = Buffer.concat([xBuf, yBuf]); // 64 bytes, sin 0x04
+  return publicKeyToEOA("0x" + pubXY.toString("hex"));
 }
 
 export function stringToHex(str: string) {
