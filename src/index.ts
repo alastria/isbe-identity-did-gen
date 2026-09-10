@@ -108,7 +108,11 @@ program
       console.log(chalk.green("Public Key (hex of JWK):"));
       console.log(chalk.white(pkHex) + "\n");
 
-      console.log(chalk.green("EOA (Ethereum Address):"));
+      const eoaLabel =
+        curve === "secp256k1"
+          ? "EOA (Ethereum Address)"
+          : "EOA (Bare Network Address)";
+      console.log(chalk.green(eoaLabel + ":"));
       console.log(chalk.white(keys.eoa) + "\n");
     } catch (err: any) {
       console.error(chalk.red(" Error:"), err?.message || err);
