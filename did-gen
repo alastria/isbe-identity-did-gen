@@ -1,4 +1,6 @@
 #!/usr/bin/env node
 
+// Development entry point: runs the TypeScript sources directly.
+// Production installs use the compiled `dist/index.js` (see package.json bin).
 require("ts-node/register/transpile-only");
 require("./src/index.ts");

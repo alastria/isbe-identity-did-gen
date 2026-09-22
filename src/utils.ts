@@ -16,7 +16,7 @@
 
 import elliptic from "elliptic";
 import { Buffer } from "node:buffer";
-import * as jose from "jose";
+import { createHash } from "node:crypto";
 import { keccak_256 } from "@noble/hashes/sha3";
 import {
   AcceptedAlgorithms,
@@ -32,7 +32,7 @@ import {
  *
  * Spec: https://eips.ethereum.org/EIPS/eip-55
  */
-function toChecksumAddress(addrHexLower: string): string {
+export function toChecksumAddress(addrHexLower: string): string {
   const addr = addrHexLower.replace(/^0x/, "").toLowerCase();
   if (!/^[0-9a-f]{40}$/.test(addr)) {
     throw new Error(`Invalid Ethereum address: ${addrHexLower}`);
@@ -107,8 +107,48 @@ export function getPublicKey(privHex: string, curve: AcceptedCurves) {
   return "0x" + pubUncompressed.toString("hex");
 }
 
+/**
+ * JWK thumbprint (RFC 7638) with SHA-256, base64url, unpadded.
+ *
+ * For an EC key the required members are exactly `crv`, `kty`, `x` and `y`,
+ * serialised as JSON with no whitespace and with the keys in lexicographic
+ * order. `alg` is deliberately excluded — it is not a required member, so
+ * including it would produce a different thumbprint from every other
+ * implementation.
+ *
+ * Implemented here rather than via `jose` because `jose` v6 is ESM-only,
+ * which breaks this CommonJS package on Node < 22.12 and under Jest. The
+ * golden vectors pin the output to what `jose` produced.
+ */
 export async function calculateJwkThumbprint(jwk: EcPublicJwk): Promise<string> {
-  return await jose.calculateJwkThumbprint(jwk);
+  if (jwk?.kty !== "EC") {
+    throw new Error(`Unsupported JWK kty '${jwk?.kty}', expected 'EC'`);
+  }
+  for (const member of ["crv", "x", "y"] as const) {
+    if (typeof jwk[member] !== "string" || jwk[member].length === 0) {
+      throw new Error(`JWK is missing required member '${member}'`);
+    }
+  }
+  const canonical = JSON.stringify({
+    crv: jwk.crv,
+    kty: jwk.kty,
+    x: jwk.x,
+    y: jwk.y,
+  });
+  return createHash("sha256").update(canonical, "utf8").digest("base64url");
+}
+
+/**
+ * Overwrites a buffer holding key material.
+ *
+ * This is best-effort. V8 strings cannot be wiped at all, and the garbage
+ * collector may already have copied a buffer elsewhere, so the guarantee is
+ * "shrinks the window", not "the secret is gone".
+ */
+export function wipe(...buffers: Array<Uint8Array | null | undefined>): void {
+  for (const buf of buffers) {
+    if (buf && buf.length > 0) buf.fill(0);
+  }
 }
 
 /**

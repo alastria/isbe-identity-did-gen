@@ -1,8 +1,12 @@
 {
   "name": "isbe-did-gen",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "scripts": {
-    "did-gen": "ts-node src/index.ts"
+    "build": "tsc",
+    "did-gen": "ts-node src/index.ts",
+    "test": "jest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
     "did",
@@ -10,19 +14,33 @@
   ],
   "author": "ISBE",
   "license": "Apache-2.0",
-  "description": "CLI tool to generate DIDs for ISBE",
+  "description": "CLI tool to generate did:isbe identifiers and sign registry transactions",
   "dependencies": {
-    "@noble/hashes": "^1.8.0",
-    "bs58": "^6.0.0",
-    "chalk": "^5.6.2",
-    "commander": "^14.0.2",
-    "elliptic": "^6.6.1",
-    "jose": "^6.2.2"
+    "@noble/hashes": "1.8.0",
+    "bs58": "6.0.0",
+    "commander": "14.0.2",
+    "elliptic": "6.6.1",
+    "ethers": "6.15.0"
   },
   "devDependencies": {
-    "@types/elliptic": "^6.4.18",
-    "@types/node": "^24.5.2",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.2"
-  }
+    "@types/elliptic": "6.4.18",
+    "@types/jest": "30.0.0",
+    "@types/node": "24.5.2",
+    "jest": "30.2.0",
+    "ts-jest": "29.4.2",
+    "ts-node": "10.9.2",
+    "typescript": "5.9.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE-2.0.txt"
+  ],
+  "bin": {
+    "did-gen": "dist/index.js"
+  },
+  "main": "dist/index.js"
 }

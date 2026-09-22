@@ -16,3 +16,12 @@
 
 export const DID_ISBE_VERSION_BYTE = 0x00;
 export const DID_ISBE_METHOD_NAME = "isbe";
+
+/**
+ * Version reported by `did-gen --version`.
+ *
+ * Kept here rather than imported from package.json so the compiled output
+ * stays inside `dist/` instead of being nested under `dist/src/`. A test
+ * asserts the two never drift apart.
+ */
+export const CLI_VERSION = "3.0.0";
