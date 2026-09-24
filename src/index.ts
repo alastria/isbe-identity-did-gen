@@ -23,10 +23,12 @@ import {
   generatePrivateKey,
 } from "./commands/keys";
 import { readUnsignedTx, signTransaction } from "./commands/signTx";
+import { exportPrivateKey } from "./commands/exportKey";
 import {
   createAndVerifyKeystoreFile,
   createKeystore,
   LocalKeySigner,
+  readKeystoreFile,
   resolveRawPrivateKey,
   resolveSigner,
   Signer,
@@ -34,7 +36,7 @@ import {
   writeKeystoreFile,
 } from "./signer";
 import { stringToHex, wipe } from "./utils";
-import { PASSPHRASE_ENV } from "./prompt";
+import { confirm, PASSPHRASE_ENV, resolvePassphrase } from "./prompt";
 import { CLI_VERSION } from "./constants";
 import { assertKeystoreSupportsCurve } from "./keystore";
 
@@ -123,7 +125,7 @@ program
   .command("did")
   .description("Generate DID + PublicKey + Proof from a keystore")
   .addOption(curveOption)
-  .option("-m, --modelDeploy <string>", "Model Deploy. Default: uc", "uc")
+  .option("-m, --modelDeploy <string>", "Environment: uc (PRO) or uc-pre (PRE)", "uc")
   .option("--json", "Emit a single JSON object on stdout")
   .action(async (opts) =>
     run(async () => {
@@ -251,7 +253,7 @@ program
   )
   .option(
     "-m, --modelDeploy <string>",
-    "Model Deploy used for the DID shown back to you",
+    "Environment for the DID shown back to you: uc (PRO) or uc-pre (PRE)",
     "uc",
   )
   .action(async (opts) =>
@@ -284,6 +286,48 @@ program
       } finally {
         wipe(privateKey);
       }
+    }),
+  );
+
+/* -------------------------------- export-key -------------------------------- */
+
+program
+  .command("export-key")
+  .description(
+    "Decrypt a keystore and print the raw private key (for tools that cannot read keystores)",
+  )
+  .requiredOption("-k, --keystore <file>", "Encrypted keystore file")
+  .option(
+    "--passphrase-stdin",
+    "Read the keystore passphrase from stdin instead of prompting",
+  )
+  .option("-y, --yes", "Skip the confirmation before printing to a terminal")
+  .action(async (opts) =>
+    run(async () => {
+      const keystore = readKeystoreFile(opts.keystore);
+
+      warn(
+        "export-key prints the private key in the clear. Anyone who sees it " +
+          "controls this identity. Prefer piping it (e.g. | pbcopy) over " +
+          "letting it land in the terminal scrollback.",
+      );
+
+      // Printing to a screen is the exposure this whole CLI exists to avoid,
+      // so it takes an explicit "yes". When stdout is piped the key never
+      // reaches the screen and the redirect is itself the decision.
+      if (process.stdout.isTTY && !opts.yes) {
+        const ok = await confirm('Type "yes" to print the private key: ');
+        if (!ok) throw new Error("Cancelled. Nothing was printed.");
+      }
+
+      const passphrase = await resolvePassphrase(opts);
+      const { privateKeyHex, address } = await exportPrivateKey(
+        keystore,
+        passphrase,
+      );
+
+      note(`Private key for ${address}:`);
+      out(privateKeyHex);
     }),
   );
 
@@ -337,6 +381,7 @@ Examples:
   did-gen keys --out ./identity.keystore.json
   did-gen did --keystore ./identity.keystore.json
   did-gen sign-tx --keystore ./identity.keystore.json < unsigned-tx.json
+  did-gen export-key --keystore ./identity.keystore.json | pbcopy
 `,
 );
 

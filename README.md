@@ -1,203 +1,141 @@
 # DID ISBE - DID Generator
 
-DID generator for `did:isbe` along with its associated cryptographic proof,
-and a local signer for the transactions the did:isbe API builds.
+Generates the key pair and the DID you need to register in ISBE.
 
-The private key never appears on the command line, in your shell history, or
-in `ps` output. It lives in an encrypted keystore and is decrypted in memory
-only for as long as a single command needs it.
+Your private key is stored encrypted on your machine and is never typed on
+the command line, so it does not end up in your shell history or visible to
+other processes.
 
-## Requirements
+## Quick start: register in ISBE
 
-- Node.js >= 20
-- npm >= 10
+**Requirements:** Node.js >= 20 and npm >= 10.
 
-## Quick start
+### 1. Install
 
 ```bash
-npm install
+npm ci
 chmod +x did-gen
-
-# 1. Create an identity key, stored encrypted (you are prompted for a passphrase)
-./did-gen keys --out ./identity.keystore.json
-
-# 2. Produce the three values the ISBE platform asks for
-./did-gen did --keystore ./identity.keystore.json
-
-# 3. Later, sign the transactions the API returns for that identity
-./did-gen sign-tx --keystore ./identity.keystore.json < unsigned-tx.json
-
-# Already have a key from an older version? Move it into a keystore:
-./did-gen import-key --out ./identity.keystore.json
 ```
 
-## Registering an identity, step by step
-
-### 1. Create the key
+### 2. Generate your key pair
 
 ```bash
 ./did-gen keys --out ./identity.keystore.json
 ```
 
-The passphrase is asked twice and is not echoed — nothing appears as you
-type, which is expected:
+You are asked for a passphrase twice. **Nothing appears as you type** — that
+is expected. Your private key is saved, encrypted, in `identity.keystore.json`.
 
-```
-Choose a keystore passphrase:
-Repeat the passphrase:
-```
+> ⚠️ **Back up `identity.keystore.json` and keep the passphrase safe.** If you
+> lose either of them, your identity can never be used again. There is no way
+> to recover it.
 
-Only public material comes back:
+### 3. Generate your DID
 
-```
-Encrypted keystore written to ./identity.keystore.json (mode 0600).
-Back it up: without the file and its passphrase the DID cannot be used again.
+Run the command for the environment you are registering in.
 
-Public Key (hex):
-0x043befb33de8069270cbc97805a45e07dd60c87cbe6b0f2a267e925a85c7fc96ff...
-
-Public Key (JWK) Thumbprint - use as vMethodId:
-DGNbZJY2X6EBvybDGTIKU4AcAclk26u9xU35wx0o7mA
-
-EOA (Ethereum Address):
-0x2f422D86173c6A018CB617320219d32e4215007d
-```
-
-Keep the thumbprint: it is the `vMethodId` the registry expects for this
-key's verification method. The private key is already inside the keystore,
-encrypted, and is never displayed.
-
-### 2. Generate the DID
+#### PRE
 
 ```bash
 ./did-gen did --keystore ./identity.keystore.json --modelDeploy uc-pre
 ```
 
+#### PRO
+
+```bash
+./did-gen did --keystore ./identity.keystore.json
+```
+
+You are asked for the passphrase, and you get three values:
+
 ```
 DID:
-did:isbe:uc-pre:z1kXhJiHYAGcXyNCqzEHXLaf8UR8
+did:isbe:uc-pre:z1XGdkixzpYEyyDhhCwRUwMTkS4K
 
 Public Key:
-0x043befb33de8069270cbc97805a45e07dd60c87cbe6b0f2a267e925a85c7fc96ff...
+0x044b85a04a52c7b20bccd1a09447d020dee216e161e9e7e30d77b8e9682589999...
 
 Proof:
-0xc9d86c1724ccd8673c96be8bedf22ee61fd1502fc366c2f43dd6a287c34441b61...
-
-EOA: 0x2f422D86173c6A018CB617320219d32e4215007d
+0x1b75ab1e0a4b568ddda980539d065418e14bf0a3388c824c5d138398f33793f5...
 ```
 
-**DID, Public Key and Proof are the three values the ISBE platform needs.**
-`--json` emits them as one object if you are assembling an API request:
+**Register the DID, Public Key and Proof with the ISBE platform.** That's it.
+
+You can run step 3 again at any time: the same keystore always produces the
+same DID.
+
+---
+
+## Other things you can do
+
+### Sign transactions with your keystore
+
+After you register, any change to your DID document (adding a key, updating
+`alsoKnownAs`, revoking something…) is a transaction. The ISBE API builds it
+for you unsigned; you sign it locally with your keystore:
 
 ```bash
-./did-gen did -k ./identity.keystore.json --json
+./did-gen sign-tx --keystore ./identity.keystore.json --tx-file unsigned-tx.json
 ```
 
-```json
-{
-  "did": "did:isbe:uc:z1kXhJiHYAGcXyNCqzEHXLaf8UR8",
-  "publicKey": "0x04...",
-  "proof": "0xc9...",
-  "eoa": "0x2f422D86173c6A018CB617320219d32e4215007d",
-  "curve": "secp256k1"
-}
-```
+The signed transaction is written to the terminal, ready to send back to the
+API. Before signing, the tool checks that the transaction belongs to your
+address. See [`sign-tx`](#sign-tx) for the full flow with `curl`.
 
-`--modelDeploy` selects the environment: `uc` (default), `uc-pre`, `uc-dev`.
+### Encrypt a private key you already have
 
-The proof is deterministic, so running `did` again on the same keystore
-always produces the same DID. Re-run it as often as you like.
-
-### 3. Afterwards: changing the DID document
-
-Creating the first DID document is done by the registry administrator — that
-call is gated on-chain by `_DID_REGISTRY_ROLE`. Every later operation on the
-document (`addVerificationMethod`, `updateBaseDocument`, `updateAlsoKnownAs`
-and so on) is signed by the identity holder, and that is what `sign-tx` is
-for. See the `sign-tx` section below.
-
-### Migrating a key you already have
-
-`import-key` moves an existing private key into a keystore. With no source
-flag it asks for the key at the terminal, without echo, so a migration never
-puts the key on a command line:
+If you have a private key in plain text, store it in an encrypted keystore:
 
 ```bash
-./did-gen import-key --out ./identity.keystore.json --modelDeploy uc-pre
+./did-gen import-key --out ./identity.keystore.json
 ```
 
-```
-Private key (64 hex chars, 0x optional):
-Choose a keystore passphrase:
-Repeat the passphrase:
+You are asked for the key (nothing appears as you type) and then for a new
+passphrase. The tool prints the DID that key produces, so you can check it
+matches your identity before you delete the plain-text copy. Add
+`--modelDeploy uc-pre` to see the PRE DID.
 
-Encrypted keystore written to ./identity.keystore.json (mode 0600), and verified readable.
+If you ever typed that key on the command line, it is still in your shell
+history. Clear it with `history -d` or by editing the history file.
 
-DID:
-did:isbe:uc-pre:z1A21tLGr3Gn4TF6fumvPoQrJSqZ
+### Decrypt a keystore to get the plain private key
 
-EOA: 0x2c7536E3605D9C16a7a3D7b1898e529396a65c23
-
-Check that DID against the identity you are migrating before deleting the old key.
-```
-
-The DID it prints is the one that key already produces, so you can confirm it
-matches the registered identity before destroying the original. The command
-also decrypts the file it just wrote and compares the key before reporting
-success — an unreadable keystore here would mean a lost identity, not a
-regenerable one.
-
-Scripted, the key can come from stdin. The passphrase then has to come from
-the environment, because stdin is a single stream and cannot carry both:
+If a tool needs the private key itself rather than the keystore file:
 
 ```bash
-echo "$OLD_KEY" | ISBE_KEYSTORE_PASSPHRASE="$PASS" \
-  ./did-gen import-key --out ./identity.keystore.json --priv-key-stdin
+./did-gen export-key --keystore ./identity.keystore.json
 ```
 
-Once the keystore is verified, remove the old key from wherever it lived —
-and remember that a key ever passed as `--privKey` is still sitting in your
-shell history. `history -d`, or clear the history file.
+Because this shows the key in the clear, it asks you to type `yes` first. The
+safest way is to send it straight to the clipboard, so it never appears on
+screen:
 
-## Where the key can come from
+```bash
+./did-gen export-key --keystore ./identity.keystore.json | pbcopy
+```
 
-Every command that needs the private key takes exactly one key source.
+Most wallets, MetaMask included, can import the keystore file directly. Check
+that before exporting the key.
 
-| Source | Flag | Notes |
-|---|---|---|
-| Encrypted keystore | `--keystore <file>` | **Recommended.** Passphrase prompted without echo. |
-| Standard input | `--priv-key-stdin` | For scripting. Not in argv, not in history. |
-| Command line | `--privKey <hex>` | **Deprecated.** Recorded in shell history and readable by any process via `ps`. Prints a warning. |
+---
 
-Passphrases are read from the terminal with echo off. For unattended runs,
-set `ISBE_KEYSTORE_PASSPHRASE` — and only from a secret manager, because
-environment variables are readable by child processes and via
-`/proc/<pid>/environ`.
+## Command reference
 
-## The keystore
+| Command | What it does |
+|---|---|
+| [`keys`](#keys) | Generates a key pair into an encrypted keystore |
+| [`did`](#did) | Produces the DID, public key and proof for registration |
+| [`sign-tx`](#sign-tx) | Signs a transaction built by the ISBE API |
+| [`import-key`](#import-key) | Encrypts an existing private key into a keystore |
+| [`export-key`](#export-key) | Decrypts a keystore back to the plain private key |
 
-`keys --out` writes a Web3 Secret Storage v3 file — scrypt (N=262144),
-AES-128-CTR, Keccak-256 MAC — created with mode `0600`. The encryption is
-ethers' implementation of the format rather than one of our own, so the file
-is the standard one: it opens in geth, ethers and MetaMask, and imports into
-Besu tooling for the Case Network. Keystores written by those tools open
-here too.
-
-**Keystores are `secp256k1` only.** The v3 format has no field for a curve,
-and a P-256 key stored this way would advertise a secp256k1 address that is
-not its own, so the CLI refuses instead of writing a misleading file. P-256
-keys still work through `--priv-key-stdin` for `did` and `keys
---print-private`; keystore support for the Bare Network is pending.
-
-**Back up the file and remember the passphrase.** Losing either means the DID
-can never be used again — there is no recovery path.
-
-## Commands
+Run `./did-gen <command> --help` for the options of any command.
 
 ### `keys`
 
 Generates a key pair. By default it writes an encrypted keystore and prints
-only public material.
+only public material, including the JWK thumbprint (the `vMethodId` used by
+the registry) and the account address.
 
 | Option | Description | Default |
 |---|---|---|
@@ -206,47 +144,25 @@ only public material.
 | `--print-private` | Print the private key in the clear instead of writing a keystore | off |
 | `--passphrase-stdin` | Read the passphrase from stdin | off |
 
-`--print-private` exists for migration and debugging. It puts the key in your
-terminal scrollback, so prefer `--out`.
+`--print-private` puts the key in your terminal scrollback. Prefer `--out`.
 
 ### `did`
 
-Generates the DID, public key and proof. These three values are what the ISBE
-platform needs in order to register the identity.
+Produces the DID, public key and proof — the three values ISBE needs to
+register an identity.
 
 | Option | Description | Default |
 |---|---|---|
 | `-k, --keystore <file>` | Encrypted keystore | — |
+| `-m, --modelDeploy <string>` | `uc` for PRO, `uc-pre` for PRE | `uc` |
 | `-c, --curve <string>` | `secp256k1` or `P-256` (a keystore is always secp256k1) | `secp256k1` |
-| `-m, --modelDeploy <string>` | Deployment identifier for `did:isbe` | `uc` |
 | `--json` | Emit a single JSON object on stdout | off |
-
-```bash
-./did-gen did --keystore ./identity.keystore.json --modelDeploy uc-pre
-```
-
-### `import-key`
-
-Moves an existing private key into an encrypted keystore. Prompts for the key
-without echo unless a source flag is given.
-
-| Option | Description |
-|---|---|
-| `-o, --out <file>` | Where to write the keystore (required) |
-| `-c, --curve <string>` | `secp256k1` or `P-256` |
-| `--priv-key-stdin` | Read the key hex from stdin |
-| `-p, --privKey <hex>` | **Deprecated.** Warns. |
-| `-m, --modelDeploy <string>` | Environment for the DID it reports back |
-
-Verifies the written file decrypts back to the same key before reporting
-success, and prints the DID so you can confirm it matches the identity being
-migrated.
 
 ### `sign-tx`
 
-Signs an unsigned transaction produced by the did:isbe API and writes the raw
-signed payload to stdout. Reads the transaction from stdin unless `--tx-file`
-or `--tx` is given.
+Signs an unsigned transaction produced by the ISBE API and writes the signed
+payload to stdout. Reads the transaction from stdin unless `--tx-file` or
+`--tx` is given.
 
 | Option | Description |
 |---|---|
@@ -255,52 +171,136 @@ or `--tx` is given.
 | `--tx <json>` | Unsigned transaction as a JSON string |
 | `--json` | Emit a JSON object instead of the bare payload |
 
-It refuses to sign a transaction whose `from` is not this keystore's address,
-and it verifies that the signed payload recovers to that address before
-emitting it.
+It refuses to sign a transaction whose `from` is not your keystore's address,
+and checks that the signed payload recovers to that address before emitting
+it.
 
-This command performs no network I/O by design — a process holding a
-decrypted key should not also be opening sockets. Compose it with `curl`:
+It does no networking on purpose — a process holding a decrypted key should
+not also be opening connections. Use it together with `curl`:
 
 ```bash
-# Ask the API to build the transaction
-curl -s -X POST "$API/contract/insertFirstDidDocument" \
+# 1. Ask the API to build the transaction
+curl -s -X POST "$API/contract/<operation>" \
   -H 'content-type: application/json' \
-  -d @insert-request.json > unsigned-tx.json
+  -d @request.json > unsigned-tx.json
 
-# Sign it locally
+# 2. Sign it locally
 ./did-gen sign-tx -k ./identity.keystore.json -f unsigned-tx.json > signed.hex
 
-# Send it
+# 3. Send it
 curl -s -X POST "$API/transactions/send" \
   -H 'content-type: application/json' \
   -d "{\"signedRawTransaction\":\"$(cat signed.hex)\"}"
 ```
 
-## Networks and curves
+### `import-key`
 
-ISBE operates two EVM networks, both stock Hyperledger Besu differing only in
+Encrypts an existing private key into a keystore. Asks for the key without
+echo unless a source flag is given.
+
+| Option | Description |
+|---|---|
+| `-o, --out <file>` | Where to write the keystore (required) |
+| `--priv-key-stdin` | Read the key from stdin |
+| `-m, --modelDeploy <string>` | `uc` (PRO, default) or `uc-pre` (PRE), for the DID it shows back |
+| `-p, --privKey <hex>` | **Deprecated.** Prints a warning. |
+
+It checks that the written file decrypts back to the same key before
+reporting success.
+
+For scripts, the key can come from stdin and the passphrase from the
+environment — stdin cannot carry both:
+
+```bash
+echo "$KEY" | ISBE_KEYSTORE_PASSPHRASE="$PASS" \
+  ./did-gen import-key --out ./identity.keystore.json --priv-key-stdin
+```
+
+### `export-key`
+
+Decrypts a keystore and prints the plain private key — the inverse of
+`import-key`.
+
+| Option | Description |
+|---|---|
+| `-k, --keystore <file>` | Encrypted keystore (required) |
+| `--passphrase-stdin` | Read the passphrase from stdin |
+| `-y, --yes` | Skip the confirmation before printing to a terminal |
+
+When the key would appear on screen it asks you to type `yes`. Piping skips
+the question, because the key never reaches the screen. The key goes to
+stdout as `0x` + 64 hex characters, the same format `import-key` accepts; the
+address goes to stderr, so it stays out of the pipe.
+
+---
+
+## Security details
+
+### Where the key can come from
+
+Every command that needs the private key takes exactly one key source.
+
+| Source | Flag | Notes |
+|---|---|---|
+| Encrypted keystore | `--keystore <file>` | **Recommended.** Passphrase asked without echo. |
+| Standard input | `--priv-key-stdin` | For scripting. Not in argv, not in history. |
+| Command line | `--privKey <hex>` | **Deprecated.** Recorded in shell history and visible to any process via `ps`. Prints a warning. |
+
+Passphrases are read from the terminal with echo off. For unattended runs,
+set `ISBE_KEYSTORE_PASSPHRASE` — and only from a secret manager, because
+environment variables are readable by child processes.
+
+### The keystore
+
+`keys --out` writes a Web3 Secret Storage v3 file — scrypt (N=262144),
+AES-128-CTR, Keccak-256 MAC — created with permissions `0600` (only your user
+can read it). The encryption is ethers' implementation of the standard, not
+one of our own, so the file opens in geth, ethers and MetaMask, and keystores
+written by those tools open here too.
+
+Keystores are `secp256k1` only. The format has no field for a curve, and a
+P-256 key stored this way would advertise an address that is not its own, so
+the tool refuses instead of writing a misleading file.
+
+### Networks and curves
+
+ISBE operates two EVM networks, both Hyperledger Besu, differing only in
 `network.ecCurve` in `genesis.json`:
 
-- `secp256k1` → **Case Network** (Besu default; standard Ethereum address).
-- `P-256` → **Bare Network** (Besu genesis with `"network": { "ecCurve": "secp256r1" }`).
+- `secp256k1` → **Case Network** (standard Ethereum address).
+- `P-256` → **Bare Network** (`"network": { "ecCurve": "secp256r1" }`).
 
 In both cases the address is `keccak256(x || y).slice(-20)` with an EIP-55
-checksum. `P-256` (JWK / RFC 8812), `secp256r1` (Besu genesis) and
-`prime256v1` (OpenSSL) are three names for the same curve.
+checksum. `P-256`, `secp256r1` and `prime256v1` are three names for the same
+curve.
 
-Two things are secp256k1-only today, and both fail with an explicit message
-rather than producing something subtly wrong:
+Two features are Case Network (`secp256k1`) only today, and both fail with an
+explicit message rather than producing something subtly wrong:
 
-- **Keystores.** The v3 format cannot record a curve. P-256 keys go through
-  `--priv-key-stdin`.
-- **`sign-tx`.** ethers cannot produce a P-256 signature, so a Bare Network
-  transaction would be rejected on-chain.
+- **Keystores**, because the format cannot record a curve. P-256 keys work
+  through `--priv-key-stdin`.
+- **`sign-tx`**, because ethers cannot produce a P-256 signature.
 
-`did` and `keys --print-private` work with both curves. Bare Network support
-means revisiting those two points.
+`did` and `keys --print-private` work with both curves.
 
-## A note on the public key and the proof
+---
+
+## Contributing
+
+```bash
+npm ci
+npm test          # golden vectors, registry validation, keystore, signer
+npm run typecheck
+npm run build     # compiles to dist/
+```
+
+`src/tests/fixtures/golden-vectors.json` records the DID, proof, public key,
+address and JWK thumbprint produced by v2.1.0. They are the compatibility
+contract with identities already registered on-chain: a DID is derived from
+its proof, and the registry re-checks that derivation on every insert. **Do
+not regenerate the fixture to make a failing test pass.**
+
+### A note on the public key and the proof
 
 The registry validates the proof in
 `DidDocumentDetailedInternal._validateProof`:
@@ -311,26 +311,11 @@ require(recovered == _getAddress(_publicKey));
 ```
 
 The digest hashes `_publicKey` **as received**, while `_getAddress` first
-strips a leading `0x04`. The two therefore agree only when the public key
-reaches the contract as the 64-byte `X || Y` form. This CLI prints the
-65-byte `0x04 || X || Y` encoding, matching previous versions and what the
-API layer expects; the conversion happens below the API. `registry-validation.test.ts`
+strips a leading `0x04`. The two agree only when the public key reaches the
+contract as the 64-byte `X || Y` form. This tool prints the 65-byte
+`0x04 || X || Y` encoding, matching previous versions and what the API
+expects; the conversion happens below the API. `registry-validation.test.ts`
 pins this behaviour in both directions.
-
-## Development
-
-```bash
-npm ci
-npm test          # golden vectors, registry validation, keystore, signer
-npm run typecheck
-npm run build     # compiles to dist/
-```
-
-`src/tests/fixtures/golden-vectors.json` records the DID, proof, public key,
-EOA and JWK thumbprint produced by v2.1.0. They are the compatibility
-contract with identities already registered on-chain: a DID is derived from
-its proof, and the registry re-checks that derivation on every insert. **Do
-not regenerate the fixture to make a failing test pass.**
 
 ## License
 

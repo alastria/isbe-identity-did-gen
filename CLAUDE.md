@@ -90,6 +90,13 @@ Note the asymmetry it pins: `_validateProof` hashes `_publicKey` raw, while
 the public key reaches the contract as 64 bytes. The CLI prints the 65-byte
 form; the conversion happens below the API.
 
+**`export-key` is the one deliberate exit for the raw key.** It calls
+`decryptKeystore` directly instead of going through a `Signer`, because the
+`Signer` interface intentionally has no way to hand the key out. Keep it that
+way: do not add a getter to `Signer` to make other code paths easier. The
+confirmation only triggers when stdout is a TTY — piping is treated as the
+user's decision.
+
 ## Scope limits
 
 - `sign-tx` is secp256k1 (Case Network) only. Bare Network uses P-256, which `ethers` cannot sign; the code fails loudly instead of emitting a bad signature.

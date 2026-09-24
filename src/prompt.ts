@@ -98,6 +98,27 @@ export async function promptPrivateKey(): Promise<string> {
   return await promptSecret("Private key (64 hex chars, 0x optional): ");
 }
 
+/**
+ * Asks a yes/no question on the terminal (with echo - nothing secret here).
+ * Only an explicit "yes" counts; anything else, including Enter, is a no.
+ */
+export function confirm(question: string): Promise<boolean> {
+  if (!process.stdin.isTTY) {
+    return Promise.reject(
+      new Error(
+        `No interactive terminal available to confirm "${question.trim()}". Pass --yes to skip the confirmation.`,
+      ),
+    );
+  }
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  return new Promise<boolean>((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase() === "yes");
+    });
+  });
+}
+
 export type PassphraseOptions = {
   /** Read the passphrase from stdin instead of prompting. */
   passphraseStdin?: boolean;

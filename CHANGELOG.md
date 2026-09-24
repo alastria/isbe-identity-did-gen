@@ -27,6 +27,11 @@
   and bidirectional interoperability with ethers/geth/MetaMask.
 - `--json` output for `did` and `sign-tx`.
 
+- `export-key`: decrypts a keystore back to the raw private key, for tools
+  that cannot read keystores. Asks for an explicit `yes` before printing to a
+  terminal; piping (e.g. `| pbcopy`) skips the question since the key never
+  reaches the screen. Round-trips exactly with `import-key`.
+
 ### Changed
 
 - The keystore is now ethers' implementation of Web3 Secret Storage v3 rather
