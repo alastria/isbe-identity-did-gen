@@ -14,13 +14,14 @@ other processes.
 
 ```bash
 npm ci
-chmod +x did-gen
+npm run build
+npm link
 ```
 
 ### 2. Generate your key pair
 
 ```bash
-./did-gen keys --out ./identity.keystore.json
+did-gen keys --out ./identity.keystore.json
 ```
 
 You are asked for a passphrase twice. **Nothing appears as you type** — that
@@ -37,13 +38,13 @@ Run the command for the environment you are registering in.
 #### PRE
 
 ```bash
-./did-gen did --keystore ./identity.keystore.json --modelDeploy uc-pre
+did-gen did --keystore ./identity.keystore.json --modelDeploy uc-pre
 ```
 
 #### PRO
 
 ```bash
-./did-gen did --keystore ./identity.keystore.json
+did-gen did --keystore ./identity.keystore.json
 ```
 
 You are asked for the passphrase, and you get three values:
@@ -75,7 +76,7 @@ After you register, any change to your DID document (adding a key, updating
 for you unsigned; you sign it locally with your keystore:
 
 ```bash
-./did-gen sign-tx --keystore ./identity.keystore.json --tx-file unsigned-tx.json
+did-gen sign-tx --keystore ./identity.keystore.json --tx-file unsigned-tx.json
 ```
 
 The signed transaction is written to the terminal, ready to send back to the
@@ -87,7 +88,7 @@ address. See [`sign-tx`](#sign-tx) for the full flow with `curl`.
 If you have a private key in plain text, store it in an encrypted keystore:
 
 ```bash
-./did-gen import-key --out ./identity.keystore.json
+did-gen import-key --out ./identity.keystore.json
 ```
 
 You are asked for the key (nothing appears as you type) and then for a new
@@ -103,7 +104,7 @@ history. Clear it with `history -d` or by editing the history file.
 If a tool needs the private key itself rather than the keystore file:
 
 ```bash
-./did-gen export-key --keystore ./identity.keystore.json
+did-gen export-key --keystore ./identity.keystore.json
 ```
 
 Because this shows the key in the clear, it asks you to type `yes` first. The
@@ -111,7 +112,7 @@ safest way is to send it straight to the clipboard, so it never appears on
 screen:
 
 ```bash
-./did-gen export-key --keystore ./identity.keystore.json | pbcopy
+did-gen export-key --keystore ./identity.keystore.json | pbcopy
 ```
 
 Most wallets, MetaMask included, can import the keystore file directly. Check
@@ -129,7 +130,7 @@ that before exporting the key.
 | [`import-key`](#import-key) | Encrypts an existing private key into a keystore |
 | [`export-key`](#export-key) | Decrypts a keystore back to the plain private key |
 
-Run `./did-gen <command> --help` for the options of any command.
+Run `did-gen <command> --help` for the options of any command.
 
 ### `keys`
 
@@ -185,7 +186,7 @@ curl -s -X POST "$API/contract/<operation>" \
   -d @request.json > unsigned-tx.json
 
 # 2. Sign it locally
-./did-gen sign-tx -k ./identity.keystore.json -f unsigned-tx.json > signed.hex
+did-gen sign-tx -k ./identity.keystore.json -f unsigned-tx.json > signed.hex
 
 # 3. Send it
 curl -s -X POST "$API/transactions/send" \
@@ -213,7 +214,7 @@ environment — stdin cannot carry both:
 
 ```bash
 echo "$KEY" | ISBE_KEYSTORE_PASSPHRASE="$PASS" \
-  ./did-gen import-key --out ./identity.keystore.json --priv-key-stdin
+  did-gen import-key --out ./identity.keystore.json --priv-key-stdin
 ```
 
 ### `export-key`
