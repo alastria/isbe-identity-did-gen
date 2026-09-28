@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-export const DID_ISBE_VERSION_BYTE = 0x00;
-export const DID_ISBE_METHOD_NAME = "isbe";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { CLI_VERSION } from "../constants";
 
-/**
- * Version reported by `did-gen --version`.
- *
- * Kept here rather than imported from package.json so the compiled output
- * stays inside `dist/` instead of being nested under `dist/src/`. A test
- * asserts the two never drift apart.
- */
-export const CLI_VERSION = "3.0.0";
+describe("version", () => {
+  it("matches package.json", () => {
+    const pkg = JSON.parse(
+      readFileSync(join(__dirname, "..", "..", "package.json"), "utf8"),
+    );
+    // The version a user sees from `did-gen --version` is how they tell us
+    // which build produced a DID. It must not drift from the published one.
+    expect(CLI_VERSION).toBe(pkg.version);
+  });
+});
