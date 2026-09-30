@@ -18,6 +18,36 @@ npm run build
 npm link
 ```
 
+`npm link` makes `did-gen` available as a command from any folder.
+
+#### If `npm link` fails with `EACCES: permission denied`
+
+This happens on macOS and Linux when Node was installed with the official
+installer: npm's global folder belongs to the system, not to your user. Point
+npm to a folder in your home directory instead. You only need to do this once
+per computer:
+
+```bash
+mkdir -p ~/.npm-global
+npm config set prefix ~/.npm-global
+echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+npm link
+```
+
+If your shell is bash rather than zsh, use `~/.bashrc` instead of `~/.zshrc`.
+Check it worked with `did-gen --version`.
+
+Avoid `sudo npm link` and changing permissions on `/usr/local`: both work,
+but leave system-owned files behind that cause more permission errors later.
+
+**Prefer not to install anything globally?** Skip `npm link` and run the tool
+from this folder with `node dist/index.js` in place of `did-gen`, for example:
+
+```bash
+node dist/index.js keys --out ./identity.keystore.json
+```
+
 ### 2. Generate your key pair
 
 ```bash
