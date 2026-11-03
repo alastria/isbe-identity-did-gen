@@ -1,0 +1,50 @@
+# Builds the desktop GUI installers natively on each OS.
+# electron-builder's NSIS/AppImage tooling is x86_64-only, so cross-building
+# from an Apple Silicon Mac needs Rosetta; native runners avoid that entirely.
+name: Desktop installers
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            script: dist:mac
+          - os: windows-latest
+            script: dist:win
+          - os: ubuntu-latest
+            script: dist:linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: node desktop/scripts/bootstrap.cjs
+      - run: npm --prefix desktop test
+      - run: npm --prefix desktop run ${{ matrix.script }}
+        env:
+          # No signing certificates yet: stop electron-builder from looking for one.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ runner.os }}
+          path: |
+            desktop/release/*.dmg
+            desktop/release/*.zip
+            desktop/release/*.exe
+            desktop/release/*.AppImage
+            desktop/release/*.deb
+          if-no-files-found: error
