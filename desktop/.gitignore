@@ -1,5 +1,4 @@
 node_modules/
 .core/
 release/
-package-lock.json
 *.log

@@ -156,6 +156,8 @@ function registerHandlers() {
 
   endpoint('sign', async (password) => {
     const keystore = requiredFile(state.keystore, 'Select a keystore first.');
+    // A link can replace state.unsigned while the dialog is open: remember what was shown.
+    const fromLink = state.unsigned?.raw !== undefined;
     const { tx, summary } = sameTransaction();
     // Native confirmation is intentionally performed in the main process,
     // independent of the renderer's form validation and display.
@@ -170,7 +172,7 @@ function registerHandlers() {
     const result = await core.signLocal(keystore, password, tx);
     state.signed = result.signedRawTransaction;
     // Whoever sent the link is waiting to paste it back: not a secret, so it stays there.
-    if (state.unsigned.raw !== undefined) {
+    if (fromLink) {
       clipboard.writeText(result.signedRawTransaction);
       return { ...result, copied: true };
     }
@@ -295,49 +297,54 @@ function createWindow() {
 }
 
 // One window per user: a second instance would hold its own keystore state.
-if (!app.requestSingleInstanceLock()) app.quit();
-app.on('second-instance', (_event, argv) => {
-  if (!window || window.isDestroyed()) return;
-  const link = findSignLink(argv);
-  if (link) return openSignLink(link);
-  if (window.isMinimized()) window.restore();
-  window.focus();
-});
-// macOS hands links to the running app, also the one that launched it.
-app.on('open-url', (event, link) => {
-  event.preventDefault();
-  openSignLink(link);
-});
-// Only installed builds claim the scheme: under `npm start` the handler would be the stock
-// Electron binary, system-wide, which opens its demo window instead of this app.
-if (app.isPackaged) app.setAsDefaultProtocolClient(SCHEME);
-
-app.whenReady().then(() => {
-  // Packaged builds take the icon from the bundle; `npm start` runs the stock Electron binary.
-  if (!app.isPackaged && process.platform === 'darwin') {
-    app.dock.setIcon(path.join(__dirname, 'build', 'icon.png'));
-  }
-  const assets = new Map([
-    ['/index.html', 'index.html'],
-    ['/app.js', 'app.js'],
-    ['/styles.css', 'styles.css'],
-    ['/icon.svg', 'icon.svg'],
-  ]);
-  protocol.handle('isbe-app', (request) => {
-    const url = new URL(request.url);
-    if (url.hostname !== 'local' || !assets.has(url.pathname)) {
-      return new Response('Not Found', { status: 404 });
-    }
-    return net.fetch(pathToFileURL(path.join(__dirname, 'renderer', assets.get(url.pathname))).toString());
-  });
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
-  registerHandlers();
-  createWindow();
-  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
-}).catch((error) => {
-  dialog.showErrorBox('Could not start ISBE DID Generator', error.message);
+// quit() is asynchronous, so a second instance must not go on to register handlers
+// and open a window of its own before it exits.
+if (!app.requestSingleInstanceLock()) {
   app.quit();
-});
+} else {
+  app.on('second-instance', (_event, argv) => {
+    if (!window || window.isDestroyed()) return;
+    const link = findSignLink(argv);
+    if (link) return openSignLink(link);
+    if (window.isMinimized()) window.restore();
+    window.focus();
+  });
+  // macOS hands links to the running app, also the one that launched it.
+  app.on('open-url', (event, link) => {
+    event.preventDefault();
+    openSignLink(link);
+  });
+  // Only installed builds claim the scheme: under `npm start` the handler would be the stock
+  // Electron binary, system-wide, which opens its demo window instead of this app.
+  if (app.isPackaged) app.setAsDefaultProtocolClient(SCHEME);
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+  app.whenReady().then(() => {
+    // Packaged builds take the icon from the bundle; `npm start` runs the stock Electron binary.
+    if (!app.isPackaged && process.platform === 'darwin') {
+      app.dock.setIcon(path.join(__dirname, 'build', 'icon.png'));
+    }
+    const assets = new Map([
+      ['/index.html', 'index.html'],
+      ['/app.js', 'app.js'],
+      ['/styles.css', 'styles.css'],
+      ['/icon.svg', 'icon.svg'],
+    ]);
+    protocol.handle('isbe-app', (request) => {
+      const url = new URL(request.url);
+      if (url.hostname !== 'local' || !assets.has(url.pathname)) {
+        return new Response('Not Found', { status: 404 });
+      }
+      return net.fetch(pathToFileURL(path.join(__dirname, 'renderer', assets.get(url.pathname))).toString());
+    });
+    session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+    session.defaultSession.setPermissionCheckHandler(() => false);
+    registerHandlers();
+    createWindow();
+    app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+  }).catch((error) => {
+    dialog.showErrorBox('Could not start ISBE DID Generator', error.message);
+    app.quit();
+  });
+
+  app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+}

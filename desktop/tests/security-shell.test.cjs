@@ -44,3 +44,26 @@ test('macOS hardened runtime grants only the JIT entitlement', () => {
   assert.equal(build.mac.hardenedRuntime, true);
   assert.equal(build.mac.entitlements, 'build/entitlements.mac.plist');
 });
+
+test('a second instance quits without registering handlers or opening a window', () => {
+  assert.match(main, /if \(!app\.requestSingleInstanceLock\(\)\) \{\s*app\.quit\(\);\s*\} else \{\s*app\.on\('second-instance'/);
+});
+
+test('the clipboard copy follows the transaction that was signed, not a later link', () => {
+  assert.match(main, /const fromLink = state\.unsigned\?\.raw !== undefined;\s*const \{ tx, summary \} = sameTransaction\(\);/);
+  assert.match(main, /if \(fromLink\) \{\s*clipboard\.writeText/);
+});
+
+test('registry dependencies are pinned by hash; only the local CLI tarball is not', () => {
+  const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
+  const entries = Object.entries(lock.packages).filter(([name]) => name);
+  for (const [name, entry] of entries) {
+    if (name === 'node_modules/isbe-did-gen') {
+      assert.equal(entry.resolved, 'file:.core/isbe-did-gen.tgz');
+      assert.equal(entry.integrity, undefined);
+    } else if (!entry.link) {
+      assert.match(entry.resolved ?? '', /^https:\/\/registry\.npmjs\.org\//, name);
+      assert.match(entry.integrity ?? '', /^sha512-/, name);
+    }
+  }
+});

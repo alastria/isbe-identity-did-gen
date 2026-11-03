@@ -27,6 +27,19 @@ function run(args, cwd, capture = false) {
   return result.stdout;
 }
 
+// The CLI tarball is rebuilt from this checkout on every run, so a pinned hash for it
+// would change with every CLI edit and make npm reject the lockfile (EINTEGRITY).
+// Only that entry loses its hash; every registry dependency stays pinned.
+function dropLocalIntegrity() {
+  const file = path.join(desktop, 'package-lock.json');
+  if (!fs.existsSync(file)) return;
+  const lock = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const entry = lock.packages?.['node_modules/isbe-did-gen'];
+  if (!entry?.integrity) return;
+  delete entry.integrity;
+  fs.writeFileSync(file, JSON.stringify(lock, null, 2) + '\n');
+}
+
 try {
   if (!fs.existsSync(path.join(root, 'node_modules', 'typescript'))) {
     throw new Error('Install the existing CLI dependencies first: npm ci (in the repository root).');
@@ -48,7 +61,9 @@ try {
   // npm may retain a previously installed local tarball. Force a fresh copy
   // when the root code changes without a package version bump.
   fs.rmSync(path.join(desktop, 'node_modules', 'isbe-did-gen'), { recursive: true, force: true });
-  run(['install', '--no-audit', '--no-fund', '--no-package-lock'], desktop);
+  dropLocalIntegrity();
+  run(['install', '--no-audit', '--no-fund'], desktop);
+  dropLocalIntegrity();
   console.log('\nDesktop app ready. Run: npm --prefix desktop start');
 } catch (error) {
   console.error('\nDesktop bootstrap failed:', error.message);

@@ -5,7 +5,7 @@ No modifications to the DID Registry, DID API, Evidence Gateway, or CLI are requ
 
 ## Requirements
 
-- Node.js 20+ and npm 10+
+- Node.js 22.12+ (required by Electron 45) and npm 10+
 - macOS, Windows, or Linux desktop
 
 ## Start from the repository root
@@ -23,6 +23,12 @@ files outside the packaged application, and ensures the desktop GUI uses the
 same signing implementation as the CLI. Re-run bootstrap after changing CLI
 sources; it does not change root `package.json` or `package-lock.json`.
 
+`desktop/package-lock.json` pins every registry dependency of the app
+(Electron, electron-builder and the CLI's own dependencies) by hash. The one
+exception is the local CLI tarball, which bootstrap rebuilds on every run, so
+its hash is left out on purpose. Commit the lockfile whenever bootstrap changes
+it; CI fails if it is out of date.
+
 For standalone installers, after bootstrap:
 
 ```sh
@@ -37,6 +43,7 @@ Artifacts appear in `desktop/release/`. No auto-updater is provided.
 The simplest way to get all three is the **Desktop installers** GitHub Actions
 workflow (`.github/workflows/desktop.yml`): run it by hand or push a `v*` tag,
 and it builds each OS on a native runner and attaches the installers to the run.
+It also runs on pull requests that touch the GUI or the CLI it ships.
 Building Windows/Linux from an Apple Silicon Mac also works, but
 electron-builder's NSIS and AppImage tools are x86_64-only, so it needs Rosetta
 (`softwareupdate --install-rosetta --agree-to-license`).

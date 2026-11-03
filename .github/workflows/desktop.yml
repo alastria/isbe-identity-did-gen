@@ -7,6 +7,14 @@ on:
   workflow_dispatch:
   push:
     tags: ['v*']
+  # The GUI ships the CLI code, so changes to either are built before merging.
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/desktop.yml'
 
 permissions:
   contents: read
@@ -30,9 +38,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
       - run: npm ci
       - run: npm test
       - run: node desktop/scripts/bootstrap.cjs
+      # bootstrap installs from the committed lockfile; a change means it was out of date.
+      - run: git diff --exit-code desktop/package-lock.json
       - run: npm --prefix desktop test
       - run: npm --prefix desktop run ${{ matrix.script }}
         env:
