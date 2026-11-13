@@ -143,7 +143,10 @@ describe("keystore", () => {
       const ks = await encryptKeystore(PRIV, PASSPHRASE, "secp256k1");
 
       writeKeystoreFile(path, ks);
-      expect(statSync(path).mode & 0o777).toBe(0o600);
+      // Windows has no POSIX permission bits; Node reports 0666 for any writable file.
+      if (process.platform !== "win32") {
+        expect(statSync(path).mode & 0o777).toBe(0o600);
+      }
       // Overwriting a keystore destroys an identity; it must never happen.
       expect(() => writeKeystoreFile(path, ks)).toThrow();
 
@@ -293,7 +296,9 @@ describe("createAndVerifyKeystoreFile", () => {
       createAndVerifyKeystoreFile(PRIV, "secp256k1", OPTS, path),
     );
 
-    expect(statSync(path).mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32") {
+      expect(statSync(path).mode & 0o777).toBe(0o600);
+    }
     const { privateKey, curve } = await decryptKeystore(
       readFileSync(path, "utf8"),
       PASSPHRASE,
