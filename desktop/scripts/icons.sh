@@ -5,10 +5,6 @@ set -eu
 cd "$(dirname "$0")/.."
 paths=$(sed -E 's/^<svg[^>]*>//; s#</svg>[[:space:]]*$##' build/isbe-logo.svg)
 
-# In-app mark: the black strand is recoloured for the dark UI.
-printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 47" fill="none">%s</svg>\n' \
-  "$(printf '%s' "$paths" | sed 's/fill="black"/fill="#eaf0fc"/g')" > renderer/icon.svg
-
 # App icon: macOS grid (824px tile on a 1024 canvas), brand colours on white.
 tmp=$(mktemp -d)
 cat > "$tmp/icon.svg" <<SVG
@@ -31,4 +27,4 @@ iconutil -c icns "$set_dir" -o build/icon.icns
 magick "$set_dir/icon_16x16.png" "$set_dir/icon_32x32.png" "$set_dir/icon_32x32@2x.png" \
   "$set_dir/icon_128x128.png" "$set_dir/icon_256x256.png" build/icon.ico
 rm -rf "$tmp"
-echo "Icons written to build/ and renderer/icon.svg"
+echo "Icons written to build/"

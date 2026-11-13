@@ -3,105 +3,140 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>ISBE DID Generator</title>
-  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="icon" href="./assets/logos/isotipo-rgb-pos.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
   <script src="./app.js" defer></script>
 </head>
 <body>
   <div class="shell">
     <aside class="sidebar">
-      <div class="brand"><img src="./icon.svg" alt="" width="43" height="43"><div><strong>ISBE</strong><span>DID GENERATOR</span></div></div>
-      <div class="sidebar-label">IDENTITY TOOLS</div>
+      <div class="brand">
+        <img src="./assets/logos/isbe-rgb-neg.svg" alt="ISBE" width="132">
+        <span class="product">DID Generator</span>
+      </div>
       <nav aria-label="Operations">
-        <button class="nav-item active" data-view="generate" aria-current="page"><span class="nav-symbol">✦</span> Generate identity</button>
-        <button class="nav-item" data-view="did"><span class="nav-symbol">◎</span> Generate DID</button>
-        <button class="nav-item" data-view="sign"><span class="nav-symbol">↗</span> Sign transaction</button>
-        <button class="nav-item" data-view="import"><span class="nav-symbol">↓</span> Import private key</button>
-        <button class="nav-item" data-view="export"><span class="nav-symbol">↥</span> Export private key</button>
+        <div class="nav-group">Identity</div>
+        <button class="nav-item active" data-view="generate" aria-current="page">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2.5 20.5c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/><path d="M19 8v6M16 11h6"/></svg>
+          Generate identity</button>
+        <button class="nav-item" data-view="did">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.6-1.3 1.7-2 3-2s2.4.7 3 2M15 10h3M15 14h3"/></svg>
+          Generate DID</button>
+        <div class="nav-group">Transactions</div>
+        <button class="nav-item" data-view="sign">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg>
+          Sign transaction</button>
+        <div class="nav-group">Key management</div>
+        <button class="nav-item" data-view="import">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>
+          Import private key</button>
+        <button class="nav-item" data-view="export">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14.5 8.5l2 2"/></svg>
+          Export private key</button>
       </nav>
-      <div class="sidebar-bottom"><div class="status-dot"></div><div><strong>Offline by design</strong><small>No accounts · No network requests</small></div></div>
+      <div class="sidebar-bottom">
+        <span class="status-dot" aria-hidden="true"></span>
+        <div><strong>Offline by design</strong><small>No accounts. No network requests.</small></div>
+      </div>
     </aside>
+
     <main class="content">
-      <header class="topbar"><span>Identity &amp; transaction toolkit</span><div class="status-tag"><span class="status-dot"></span>Local operations only</div></header>
+      <header class="topbar">
+        <div class="context"><span>ISBE DID Generator</span><span class="sep" aria-hidden="true">/</span><span id="context-view">Generate identity</span></div>
+        <span class="tag">Local only</span>
+      </header>
+
       <div class="page">
         <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 
         <section class="view" id="view-generate" aria-labelledby="generate-title">
-          <div class="eyebrow">01 / IDENTITY</div><h1 id="generate-title">Generate an identity</h1>
+          <div class="eyebrow">01 · Identity</div>
+          <h1 id="generate-title">Generate an identity</h1>
           <p class="subtitle">Create a new secp256k1 identity and protect it in an encrypted Web3 keystore. Nothing is uploaded or transmitted.</p>
-          <form id="generate-form" class="panel">
-            <div class="panel-title">Encrypted keystore</div>
-            <div class="field"><label>Save location</label><button class="file-button" type="button" id="generate-location"><span class="file-graphic">▣</span><span id="generate-file">Choose a new keystore file…</span><span class="file-action">Browse</span></button></div>
+          <form id="generate-form" class="panel" novalidate>
+            <h2 class="panel-title">Encrypted keystore</h2>
+            <div class="field"><label>Save location</label><button class="file-button" type="button" id="generate-location"><span class="file-graphic" aria-hidden="true"></span><span id="generate-file">Choose a new keystore file…</span><span class="file-action">Browse</span></button></div>
             <div class="two-cols">
               <div class="field"><label for="generate-password">Choose password</label><input id="generate-password" type="password" minlength="8" maxlength="1024" required autocomplete="new-password" placeholder="8 characters or more"></div>
               <div class="field"><label for="generate-confirm">Confirm password</label><input id="generate-confirm" type="password" minlength="8" maxlength="1024" required autocomplete="new-password" placeholder="Repeat your password"></div>
             </div>
-            <p class="hint">Back up both your keystore and password separately. Neither can be recovered if lost.</p>
-            <button class="primary" type="submit">Generate encrypted identity <span>→</span></button>
+            <p class="hint">Back up your keystore and your password separately. Neither can be recovered if lost.</p>
+            <button class="primary" type="submit">Generate encrypted identity</button>
           </form>
           <div class="result" id="generate-result" hidden></div>
         </section>
 
         <section class="view" id="view-did" aria-labelledby="did-title" hidden>
-          <div class="eyebrow">02 / REGISTRY</div><h1 id="did-title">Generate your DID</h1>
+          <div class="eyebrow">02 · Registry</div>
+          <h1 id="did-title">Generate your DID</h1>
           <p class="subtitle">Derive the DID, public key and proof that the ISBE registry needs, using your existing encrypted identity.</p>
-          <form id="did-form" class="panel">
-            <div class="panel-title">Identity details</div>
-            <div class="field"><label>Encrypted keystore</label><button type="button" class="file-button choose-keystore"><span class="file-graphic">▣</span><span class="keystore-file">Choose keystore…</span><span class="file-action">Browse</span></button></div>
+          <form id="did-form" class="panel" novalidate>
+            <h2 class="panel-title">Identity details</h2>
+            <div class="field"><label>Encrypted keystore</label><button type="button" class="file-button choose-keystore"><span class="file-graphic" aria-hidden="true"></span><span class="keystore-file">Choose keystore…</span><span class="file-action">Browse</span></button></div>
             <div class="field"><label for="did-environment">ISBE environment</label><select id="did-environment"><option value="uc-pre">PRE (uc-pre)</option><option value="uc">PRO (uc)</option></select></div>
             <div class="field"><label for="did-password">Keystore password</label><input id="did-password" type="password" required autocomplete="off" placeholder="Enter your keystore password"></div>
-            <button class="primary" type="submit">Generate DID and proof <span>→</span></button>
+            <button class="primary" type="submit">Generate DID and proof</button>
           </form>
           <div class="result" id="did-result" hidden></div>
         </section>
 
         <section class="view" id="view-sign" aria-labelledby="sign-title" hidden>
-          <div class="eyebrow">03 / TRANSACTIONS</div><h1 id="sign-title">Sign a transaction</h1>
-          <p class="subtitle">Sign an unsigned transaction prepared by the ISBE API, or opened from a signing link (for example, from the evidence gateway). Signing is local; broadcasting remains a separate step.</p>
-          <form id="sign-form" class="panel">
-            <div class="panel-title">Transaction details</div>
-            <div class="field"><label>Unsigned transaction (JSON)</label><button type="button" class="file-button" id="unsigned-location"><span class="file-graphic">{ }</span><span id="unsigned-file">Choose unsigned transaction…</span><span class="file-action">Browse</span></button></div>
-            <div class="review-panel" id="transaction-review" hidden><div class="review-header">REVIEW TRANSACTION</div><dl id="review-fields"></dl><p>Contract calldata is not decoded. Verify the destination and network independently before signing.</p></div>
-            <div class="field"><label>Encrypted keystore</label><button type="button" class="file-button choose-keystore"><span class="file-graphic">▣</span><span class="keystore-file">Choose keystore…</span><span class="file-action">Browse</span></button></div>
+          <div class="eyebrow">03 · Transactions</div>
+          <h1 id="sign-title">Sign a transaction</h1>
+          <p class="subtitle">Sign an unsigned transaction prepared by the ISBE API, or one opened from a signing link such as the evidence gateway. Signing happens here; broadcasting is a separate step.</p>
+          <form id="sign-form" class="panel" novalidate>
+            <h2 class="panel-title">Transaction details</h2>
+            <div class="field"><label>Unsigned transaction (JSON)</label><button type="button" class="file-button" id="unsigned-location"><span class="file-graphic" aria-hidden="true"></span><span id="unsigned-file">Choose unsigned transaction…</span><span class="file-action">Browse</span></button></div>
+            <div class="review-panel" id="transaction-review" hidden><div class="review-header">Review transaction</div><dl id="review-fields"></dl><p>Contract calldata is not decoded. Check the destination and network independently before signing.</p></div>
+            <div class="field"><label>Encrypted keystore</label><button type="button" class="file-button choose-keystore"><span class="file-graphic" aria-hidden="true"></span><span class="keystore-file">Choose keystore…</span><span class="file-action">Browse</span></button></div>
             <div class="field"><label for="sign-password">Keystore password</label><input id="sign-password" type="password" required autocomplete="off" placeholder="Enter your keystore password"></div>
-            <label class="checkbox"><input type="checkbox" id="sign-reviewed" required><span>I have verified the chain ID, destination and transaction details.</span></label>
-            <button class="primary" type="submit">Review and sign locally <span>→</span></button>
+            <label class="checkbox"><input type="checkbox" id="sign-reviewed" required><span>I have checked the chain ID, destination and transaction details.</span></label>
+            <button class="primary" type="submit">Review and sign locally</button>
           </form>
           <div class="result" id="sign-result" hidden></div>
         </section>
 
         <section class="view" id="view-import" aria-labelledby="import-title" hidden>
-          <div class="eyebrow">04 / KEY MANAGEMENT</div><h1 id="import-title">Import a private key</h1>
-          <p class="subtitle">Move an existing secp256k1 key into a new password-protected keystore without placing it in a terminal command.</p>
-          <form id="import-form" class="panel">
-            <div class="panel-title">Import key securely</div>
+          <div class="eyebrow">04 · Key management</div>
+          <h1 id="import-title">Import a private key</h1>
+          <p class="subtitle">Move an existing secp256k1 key into a new password-protected keystore without typing it into a terminal command.</p>
+          <form id="import-form" class="panel" novalidate>
+            <h2 class="panel-title">Import key securely</h2>
             <div class="field"><label for="import-private">Raw private key (64 hex characters)</label><input id="import-private" type="password" required autocomplete="off" spellcheck="false" placeholder="0x…"></div>
-            <div class="field"><label>Save location</label><button type="button" class="file-button" id="import-location"><span class="file-graphic">▣</span><span id="import-file">Choose a new keystore file…</span><span class="file-action">Browse</span></button></div>
+            <div class="field"><label>Save location</label><button type="button" class="file-button" id="import-location"><span class="file-graphic" aria-hidden="true"></span><span id="import-file">Choose a new keystore file…</span><span class="file-action">Browse</span></button></div>
             <div class="two-cols">
               <div class="field"><label for="import-password">New keystore password</label><input id="import-password" type="password" minlength="8" maxlength="1024" required autocomplete="new-password" placeholder="8 characters or more"></div>
               <div class="field"><label for="import-confirm">Confirm password</label><input id="import-confirm" type="password" minlength="8" maxlength="1024" required autocomplete="new-password" placeholder="Repeat your password"></div>
             </div>
             <p class="hint">Importing does not erase unencrypted copies elsewhere. Remove them securely and back up your keystore.</p>
-            <button class="primary" type="submit">Encrypt and import key <span>→</span></button>
+            <button class="primary" type="submit">Encrypt and import key</button>
           </form>
           <div class="result" id="import-result" hidden></div>
         </section>
 
         <section class="view" id="view-export" aria-labelledby="export-title" hidden>
-          <div class="eyebrow">05 / KEY MANAGEMENT</div><h1 id="export-title">Export a private key</h1>
+          <div class="eyebrow">05 · Key management</div>
+          <h1 id="export-title">Export a private key</h1>
           <p class="subtitle">Decrypt a keystore to obtain the raw key, only when another application cannot import encrypted keystores.</p>
-          <div class="warning"><strong>High-risk operation</strong><p>Anyone who receives this private key can control your identity. Prefer importing your encrypted keystore directly into compatible software.</p></div>
-          <form id="export-form" class="panel">
-            <div class="field"><label>Encrypted keystore</label><button type="button" class="file-button choose-keystore"><span class="file-graphic">▣</span><span class="keystore-file">Choose keystore…</span><span class="file-action">Browse</span></button></div>
+          <div class="warning"><strong>High-risk operation</strong><p>Anyone who receives this private key controls your identity. Where possible, import your encrypted keystore into compatible software instead.</p></div>
+          <form id="export-form" class="panel" novalidate>
+            <div class="field"><label>Encrypted keystore</label><button type="button" class="file-button choose-keystore"><span class="file-graphic" aria-hidden="true"></span><span class="keystore-file">Choose keystore…</span><span class="file-action">Browse</span></button></div>
             <div class="field"><label for="export-password">Keystore password</label><input id="export-password" type="password" required autocomplete="off" placeholder="Enter your keystore password"></div>
             <button class="danger" type="submit">Request private key export</button>
           </form>
           <div class="result" id="export-result" hidden></div>
         </section>
-        <footer>ISBE DID Generator · Offline signing toolkit · Private keys never leave this application unless explicitly exported</footer>
       </div>
+
+      <footer class="footer">
+        <p>Private keys never leave this application unless you export them.</p>
+        <div class="institutional">
+          <img src="./assets/logos/comunidad-madrid-color.svg" alt="Comunidad de Madrid" height="31">
+          <img src="./assets/logos/alastria-color.svg" alt="Alastria" height="28">
+        </div>
+      </footer>
     </main>
   </div>
 </body>

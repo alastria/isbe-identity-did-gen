@@ -271,7 +271,7 @@ function openSignLink(link) {
 function createWindow() {
   window = new BrowserWindow({
     width: 1120, height: 820, minWidth: 790, minHeight: 650,
-    backgroundColor: '#0a1121',
+    backgroundColor: '#F9F3E7',
     show: false,
     title: 'ISBE DID Generator',
     autoHideMenuBar: true,
@@ -327,7 +327,13 @@ if (!app.requestSingleInstanceLock()) {
       ['/index.html', 'index.html'],
       ['/app.js', 'app.js'],
       ['/styles.css', 'styles.css'],
-      ['/icon.svg', 'icon.svg'],
+      ...[
+        'logos/isbe-rgb-neg.svg', 'logos/isotipo-rgb-pos.svg',
+        'logos/comunidad-madrid-color.svg', 'logos/alastria-color.svg',
+        'icons/flecha.svg', 'icons/check.svg', 'icons/alert.svg',
+        'icons/file.svg', 'icons/chevron.svg', 'icons/copy.svg',
+        'fonts/inter-latin-wght-normal.woff2',
+      ].map((file) => [`/assets/${file}`, `assets/${file}`]),
     ]);
     protocol.handle('isbe-app', (request) => {
       const url = new URL(request.url);

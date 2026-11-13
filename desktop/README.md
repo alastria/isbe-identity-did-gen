@@ -97,8 +97,13 @@ disable DevTools.
 ### Icons
 
 `build/isbe-logo.svg` is the ISBE brand mark. `npm --prefix desktop run icons`
-regenerates `build/icon.{icns,ico,png}` and `renderer/icon.svg` from it
-(needs `rsvg-convert` and ImageMagick).
+regenerates `build/icon.{icns,ico,png}` from it (needs `rsvg-convert` and
+ImageMagick).
+
+The interface follows the ISBE brand guide: logos, the official arrow and the
+Inter font (SIL OFL, `renderer/assets/fonts/OFL-Inter.txt`) live in
+`renderer/assets/` and are bundled, so the app makes no network requests. Any new
+file there must also be added to the asset allowlist in `main.cjs`.
 
 ## Operations
 

@@ -17,19 +17,69 @@ function explain(error) {
   const msg = String(error?.message ?? error ?? 'Unknown error');
   return msg.replace(/^Error invoking remote method '[^']+': Error: /, '');
 }
+// A validation error that belongs to one control: shown next to it, not in the banner.
+function fieldError(message, selector) {
+  const error = new Error(message);
+  error.field = selector;
+  return error;
+}
+// Errors from the main process that are about the keystore password.
+const PASSWORD_ERROR = /^(Wrong passphrase|Enter your keystore password|Use a keystore password)/;
+function clearFieldErrors(scope) {
+  for (const el of scope.querySelectorAll('.field-error')) el.remove();
+  for (const el of scope.querySelectorAll('.invalid')) el.classList.remove('invalid');
+  for (const el of scope.querySelectorAll('[aria-invalid]')) {
+    el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby');
+  }
+}
+let fieldErrorCount = 0;
+function showFieldError(control, message) {
+  const holder = control.closest('.field') ?? control.closest('.checkbox');
+  const error = document.createElement('p');
+  error.className = 'field-error';
+  error.id = `field-error-${++fieldErrorCount}`;
+  error.setAttribute('role', 'alert');
+  error.textContent = message;
+  holder.classList.add('invalid');
+  if (holder.classList.contains('field')) holder.append(error); else holder.after(error);
+  control.setAttribute('aria-invalid', 'true');
+  control.setAttribute('aria-describedby', error.id);
+  const clear = () => {
+    error.remove(); holder.classList.remove('invalid');
+    control.removeAttribute('aria-invalid'); control.removeAttribute('aria-describedby');
+  };
+  for (const type of ['input', 'change', 'click']) control.addEventListener(type, clear, { once: true });
+  control.focus({ preventScroll: true });
+  const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  holder.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' });
+}
 async function operation(form, callback) {
   const buttons = [...form.querySelectorAll('button[type=submit]')];
   buttons.forEach((button) => { button.disabled = true; });
   $('notice').hidden = true;
+  clearFieldErrors(form);
   try { await callback(); }
-  catch (error) { notify(explain(error)); }
+  catch (error) {
+    const message = explain(error);
+    let control = error.field ? form.querySelector(error.field) : null;
+    if (!control && PASSWORD_ERROR.test(message)) {
+      control = form.querySelector('input[type=password][autocomplete=off]:not(#import-private)');
+    }
+    if (control) showFieldError(control, message); else notify(message);
+  }
   finally { buttons.forEach((button) => { button.disabled = false; }); }
+}
+// New output appears below the form, often off screen: bring it into view.
+function reveal(element) {
+  element.hidden = false;
+  const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  requestAnimationFrame(() => element.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' }));
 }
 function clearPassword(...ids) { for (const id of ids) $(id).value = ''; }
 function matchesPasswords(first, second) {
   const password = $(first).value;
-  if (password !== $(second).value) throw new Error('The passwords do not match.');
-  if (password.length < 8) throw new Error('Use a password with at least 8 characters.');
+  if (password !== $(second).value) throw fieldError('The passwords do not match.', `#${second}`);
+  if (password.length < 8) throw fieldError('Use a password with at least 8 characters.', `#${first}`);
   return password;
 }
 function renderFields(targetId, heading, fields, actions = []) {
@@ -45,10 +95,13 @@ function renderFields(targetId, heading, fields, actions = []) {
     const text = document.createElement('span'); text.textContent = String(value);
     dd.append(text);
     const copy = document.createElement('button');
-    copy.type = 'button'; copy.className = 'copy'; copy.textContent = 'Copy';
+    copy.type = 'button'; copy.className = 'copy';
+    copy.title = `Copy ${label}`;
     copy.setAttribute('aria-label', `Copy ${label}`);
     copy.addEventListener('click', () => operation(copy.parentElement, async () => {
       await bridge.copy(String(value)); notify(`${label} copied to clipboard.`, true);
+      copy.classList.add('copied');
+      setTimeout(() => copy.classList.remove('copied'), 1500);
     }));
     dd.append(copy); list.append(dt, dd);
   }
@@ -65,7 +118,7 @@ function renderFields(targetId, heading, fields, actions = []) {
     }
     container.append(row);
   }
-  container.hidden = false;
+  reveal(container);
 }
 function identityFields(details) {
   return [
@@ -93,6 +146,7 @@ for (const button of document.querySelectorAll('.nav-item')) {
       if (selected) item.setAttribute('aria-current', 'page');
       else item.removeAttribute('aria-current');
     }
+    $('context-view').textContent = button.textContent.trim();
     $('notice').hidden = true;
     if (view !== 'export') clearExport();
   });
@@ -142,7 +196,7 @@ function showReview(name, s) {
     const dd = document.createElement('dd'); dd.textContent = String(value);
     preview.append(dt, dd);
   }
-  $('transaction-review').hidden = false;
+  reveal($('transaction-review'));
 }
 
 $('unsigned-location').addEventListener('click', async () => {
@@ -167,7 +221,7 @@ bridge.onSignLink(({ summary, error }) => {
 $('generate-form').addEventListener('submit', (event) => {
   event.preventDefault();
   operation(event.currentTarget, async () => {
-    if (!paths.generate) throw new Error('Choose where to save the new keystore.');
+    if (!paths.generate) throw fieldError('Choose where to save the new keystore.', '#generate-location');
     const password = matchesPasswords('generate-password', 'generate-confirm');
     try {
       const details = await bridge.generate(password);
@@ -181,7 +235,7 @@ $('generate-form').addEventListener('submit', (event) => {
 $('did-form').addEventListener('submit', (event) => {
   event.preventDefault();
   operation(event.currentTarget, async () => {
-    if (!paths.keystore) throw new Error('Select a keystore first.');
+    if (!paths.keystore) throw fieldError('Select a keystore first.', '.choose-keystore');
     const password = $('did-password').value;
     try {
       const data = await bridge.did(password, $('did-environment').value);
@@ -196,9 +250,9 @@ $('did-form').addEventListener('submit', (event) => {
 $('sign-form').addEventListener('submit', (event) => {
   event.preventDefault();
   operation(event.currentTarget, async () => {
-    if (!paths.unsigned) throw new Error('Select an unsigned transaction.');
-    if (!paths.keystore) throw new Error('Select a keystore.');
-    if (!$('sign-reviewed').checked) throw new Error('Review the transaction before signing.');
+    if (!paths.unsigned) throw fieldError('Select an unsigned transaction.', '#unsigned-location');
+    if (!paths.keystore) throw fieldError('Select a keystore.', '.choose-keystore');
+    if (!$('sign-reviewed').checked) throw fieldError('Confirm that you have checked the transaction.', '#sign-reviewed');
     const password = $('sign-password').value;
     try {
       const signed = await bridge.sign(password);
@@ -227,7 +281,7 @@ $('sign-form').addEventListener('submit', (event) => {
 $('import-form').addEventListener('submit', (event) => {
   event.preventDefault();
   operation(event.currentTarget, async () => {
-    if (!paths.import) throw new Error('Choose where to save the encrypted keystore.');
+    if (!paths.import) throw fieldError('Choose where to save the encrypted keystore.', '#import-location');
     const password = matchesPasswords('import-password', 'import-confirm');
     const secret = $('import-private').value;
     $('import-private').value = '';
@@ -249,7 +303,7 @@ function clearExport() {
 $('export-form').addEventListener('submit', (event) => {
   event.preventDefault();
   operation(event.currentTarget, async () => {
-    if (!paths.keystore) throw new Error('Select a keystore first.');
+    if (!paths.keystore) throw fieldError('Select a keystore first.', '.choose-keystore');
     const password = $('export-password').value;
     try {
       clearExport();
@@ -264,8 +318,8 @@ $('export-form').addEventListener('submit', (event) => {
       input.type = 'password'; input.value = result.privateKeyHex;
       input.setAttribute('aria-label', 'Unencrypted private key');
       const controls = document.createElement('div'); controls.className = 'secret-actions';
-      const reveal = document.createElement('button'); reveal.type = 'button'; reveal.className = 'secondary'; reveal.textContent = 'Reveal / hide';
-      reveal.addEventListener('click', () => { input.type = input.type === 'password' ? 'text' : 'password'; });
+      const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'secondary'; toggle.textContent = 'Reveal / hide';
+      toggle.addEventListener('click', () => { input.type = input.type === 'password' ? 'text' : 'password'; });
       const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'secondary'; copy.textContent = 'Copy private key';
       copy.addEventListener('click', async () => {
         try { await bridge.copy(input.value, true); notify('Copied. Clipboard will clear after 30 seconds if unchanged.', true); }
@@ -273,8 +327,8 @@ $('export-form').addEventListener('submit', (event) => {
       });
       const dismiss = document.createElement('button'); dismiss.type = 'button'; dismiss.className = 'secondary'; dismiss.textContent = 'Clear now';
       dismiss.addEventListener('click', () => { input.value = ''; clearExport(); });
-      controls.append(reveal, copy, dismiss); target.append(heading, note, input, controls);
-      target.hidden = false;
+      controls.append(toggle, copy, dismiss); target.append(heading, note, input, controls);
+      reveal(target);
       exportedTimer = setTimeout(() => { input.value = ''; clearExport(); }, 30_000);
     } finally { clearPassword('export-password'); }
   });
