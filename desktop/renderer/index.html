@@ -75,7 +75,7 @@
           <form id="did-form" class="panel" novalidate>
             <h2 class="panel-title">Identity details</h2>
             <div class="field"><label>Encrypted keystore</label><button type="button" class="file-button choose-keystore"><span class="file-graphic" aria-hidden="true"></span><span class="keystore-file">Choose keystore…</span><span class="file-action">Browse</span></button></div>
-            <div class="field"><label for="did-environment">ISBE environment</label><select id="did-environment"><option value="uc-pre">PRE (uc-pre)</option><option value="uc">PRO (uc)</option></select></div>
+            <div class="field"><label for="did-environment">ISBE environment</label><select id="did-environment"><option value="uc-dev">DEV (uc-dev)</option><option value="uc-pre" selected>PRE (uc-pre)</option><option value="uc">PRO (uc)</option></select></div>
             <div class="field"><label for="did-password">Keystore password</label><input id="did-password" type="password" required autocomplete="off" placeholder="Enter your keystore password"></div>
             <button class="primary" type="submit">Generate DID and proof</button>
           </form>

@@ -115,7 +115,7 @@ file there must also be added to the asset allowlist in `main.cjs`.
 | Import raw secp256k1 key into encrypted keystore | `did-gen import-key --out` |
 | Reveal raw private key (explicit confirmation) | `did-gen export-key --keystore` |
 
-The GUI uses PRE (`uc-pre`) and PRO (`uc`) DID environments. Keystores and
+The GUI uses DEV (`uc-dev`), PRE (`uc-pre`) and PRO (`uc`) DID environments. Keystores and
 transaction signing are **secp256k1 only**, matching the existing CLI. Bare
 Network P-256 transaction signing is not supported.
 

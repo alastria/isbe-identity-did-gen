@@ -126,7 +126,7 @@ program
   .command("did")
   .description("Generate DID + PublicKey + Proof from a keystore")
   .addOption(curveOption)
-  .option("-m, --modelDeploy <string>", "Environment: uc (PRO) or uc-pre (PRE)", "uc")
+  .option("-m, --modelDeploy <string>", "Environment: uc (PRO), uc-pre (PRE) or uc-dev (DEV)", "uc")
   .option("--json", "Emit a single JSON object on stdout")
   .action(async (opts) =>
     run(async () => {
@@ -254,7 +254,7 @@ program
   )
   .option(
     "-m, --modelDeploy <string>",
-    "Environment for the DID shown back to you: uc (PRO) or uc-pre (PRE)",
+    "Environment for the DID shown back to you: uc (PRO), uc-pre (PRE) or uc-dev (DEV)",
     "uc",
   )
   .action(async (opts) =>

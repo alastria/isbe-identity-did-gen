@@ -24,8 +24,8 @@ function checkPasswordProvided(passphrase) {
   }
 }
 function checkModel(modelDeploy) {
-  if (!['uc', 'uc-pre'].includes(modelDeploy)) {
-    throw new Error('Select PRE or PRO.');
+  if (!['uc', 'uc-pre', 'uc-dev'].includes(modelDeploy)) {
+    throw new Error('Select DEV, PRE or PRO.');
   }
 }
 
