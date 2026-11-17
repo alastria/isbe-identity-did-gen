@@ -9,3 +9,6 @@ dist/
 *.pem
 keys/
 secrets/
+
+# macOS
+.DS_Store

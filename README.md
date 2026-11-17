@@ -185,7 +185,7 @@ register an identity.
 | Option | Description | Default |
 |---|---|---|
 | `-k, --keystore <file>` | Encrypted keystore | — |
-| `-m, --modelDeploy <string>` | `uc` for PRO, `uc-pre` for PRE | `uc` |
+| `-m, --modelDeploy <string>` | `uc` for PRO, `uc-pre` for PRE, `uc-dev` for DEV | `uc` |
 | `-c, --curve <string>` | `secp256k1` or `P-256` (a keystore is always secp256k1) | `secp256k1` |
 | `--json` | Emit a single JSON object on stdout | off |
 
@@ -233,7 +233,7 @@ echo unless a source flag is given.
 |---|---|
 | `-o, --out <file>` | Where to write the keystore (required) |
 | `--priv-key-stdin` | Read the key from stdin |
-| `-m, --modelDeploy <string>` | `uc` (PRO, default) or `uc-pre` (PRE), for the DID it shows back |
+| `-m, --modelDeploy <string>` | `uc` (PRO, default), `uc-pre` (PRE) or `uc-dev` (DEV), for the DID it shows back |
 | `-p, --privKey <hex>` | **Deprecated.** Prints a warning. |
 
 It checks that the written file decrypts back to the same key before
